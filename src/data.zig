@@ -69,8 +69,6 @@ fn getApiContent(allocator: Allocator) ![]const u8 {
         return error.RequestFailed;
     }
 
-    std.log.info("got content", .{});
-
     var reader = response.?.reader();
 
     return try reader.readAllAlloc(allocator, MAX_BUFFER_LEN);
