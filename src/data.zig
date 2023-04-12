@@ -24,7 +24,7 @@ const Version = struct {
 };
 
 /// All member functions are on *const as they are usually accessed via a list
-const Zig = struct {
+pub const Zig = struct {
     name: []const u8,
     version: Version,
 
@@ -53,23 +53,23 @@ fn getApiContent(allocator: Allocator) ![]const u8 {
 
     var depth: u8 = 0;
 
-    var response: ?http.Client.Request = null;
-    defer response.?.deinit();
+    var request: ?http.Client.Request = null;
+    defer request.?.deinit();
 
     while (depth < 10) : (depth += 1) {
-        response = http_client.request(uri, .{}, .{}) catch |err| {
+        request = http_client.request(uri, .{}, .{}) catch |err| {
             log.err("Request {} failed. {!}.", .{ depth, err });
             continue;
         };
         break;
     }
 
-    if (depth == 10 or response == null) {
+    if (depth == 10 or request == null) {
         log.err("Failed to retrieve data.", .{});
         return error.RequestFailed;
     }
 
-    var reader = response.?.reader();
+    var reader = request.?.reader();
 
     return try reader.readAllAlloc(allocator, MAX_BUFFER_LEN);
 }

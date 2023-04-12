@@ -3,7 +3,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 /// Absolute Path
-pub fn dirExists(path: []const u8) bool {
+pub fn pathExists(path: []const u8) bool {
     std.fs.accessAbsolute(path, .{}) catch return false;
     return true;
 }
@@ -19,10 +19,10 @@ pub const ZvmPaths = struct {
 
     pub fn init(allocator: Allocator) !ZvmPaths {
         var base_path = try std.fs.getAppDataDir(allocator, ".zvm");
-        if (!dirExists(base_path)) try std.fs.makeDirAbsolute(base_path);
+        if (!pathExists(base_path)) try std.fs.makeDirAbsolute(base_path);
 
         var toolchain_path = try getSubpath(allocator, base_path, "toolchains");
-        if (!dirExists(toolchain_path)) try std.fs.makeDirAbsolute(toolchain_path);
+        if (!pathExists(toolchain_path)) try std.fs.makeDirAbsolute(toolchain_path);
 
         return ZvmPaths{
             .allocator = allocator,

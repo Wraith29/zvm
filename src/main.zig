@@ -1,6 +1,5 @@
 const std = @import("std");
 const commands = @import("./commands/cmd.zig");
-const versions = @import("./commands/version.zig");
 
 const Allocator = std.mem.Allocator;
 
