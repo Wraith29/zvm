@@ -1,5 +1,7 @@
 const std = @import("std");
 const commands = @import("./commands/cmd.zig");
+const path = @import("./path.zig");
+const api = @import("./api.zig");
 
 const Allocator = std.mem.Allocator;
 
