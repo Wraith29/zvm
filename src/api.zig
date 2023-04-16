@@ -173,9 +173,12 @@ pub fn getZigVersions(allocator: Allocator, paths: *path.ZvmPaths) ![]ZigVersion
 
     var cache = loadCacheFile(allocator, cache_path) catch try populateCache(allocator, cache_path);
 
-    if (cache.cache_date + std.time.ms_per_hour < std.time.milliTimestamp()) {
+    if (cache.cache_date + std.time.ms_per_day < std.time.milliTimestamp()) {
         std.log.info("Cache out of Date, Reloading", .{});
-        cache = try populateCache(allocator, cache_path);
+        std.json.parseFree(Cache, cache, .{ .allocator = allocator });
+
+        var updated_cache = try populateCache(allocator, cache_path);
+        return updated_cache.versions;
     }
 
     std.log.info("Cache Versions Loaded", .{});

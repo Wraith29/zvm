@@ -24,7 +24,6 @@ pub const ZvmPaths = struct {
     allocator: Allocator,
     base_path: []const u8,
     toolchain_path: []const u8,
-    version_path: ?[]const u8 = null,
 
     pub fn init(allocator: Allocator) !ZvmPaths {
         var base_path = try std.fs.getAppDataDir(allocator, ".zvm");
@@ -43,6 +42,47 @@ pub const ZvmPaths = struct {
     pub fn deinit(self: *ZvmPaths) void {
         self.allocator.free(self.base_path);
         self.allocator.free(self.toolchain_path);
+    }
+
+    pub fn getVersionPath(self: *ZvmPaths, version: []const u8) ![]const u8 {
+        return try std.mem.concat(
+            self.allocator,
+            u8,
+            &[_][]const u8{ self.toolchain_path, std.fs.path.sep_str, version },
+        );
+    }
+
+    pub fn getTmpVersionPath(self: *ZvmPaths, version: []const u8) ![]const u8 {
+        return try std.mem.concat(
+            self.allocator,
+            u8,
+            &[_][]const u8{ self.toolchain_path, std.fs.path.sep_str, "tmp-", version },
+        );
+    }
+
+    pub fn getVersionPathWithExt(self: *ZvmPaths, version: []const u8, ext: []const u8) ![]const u8 {
+        return try std.mem.concat(
+            self.allocator,
+            u8,
+            &[_][]const u8{ try self.getVersionPath(version), std.fs.path.sep_str, version, ext },
+        );
+    }
+
+    pub fn getTmpVersionFileWithExt(self: *ZvmPaths, version: []const u8, ext: []const u8) ![]const u8 {
+        var tmp_version_path = try self.getTmpVersionPath(version);
+        defer self.allocator.free(tmp_version_path);
+
+        return try std.mem.concat(
+            self.allocator,
+            u8,
+            &[_][]const u8{
+                tmp_version_path,
+                std.fs.path.sep_str,
+                "tmp-",
+                version,
+                ext,
+            },
+        );
     }
 
     pub fn getCachePath(self: *ZvmPaths) ![]const u8 {
