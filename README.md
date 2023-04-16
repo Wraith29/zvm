@@ -2,6 +2,4 @@
 
 ## Requirements
 
-### Windows
-
- - 7-Zip installed & on path
+- Tar available on path
