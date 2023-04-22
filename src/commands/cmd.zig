@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const api = @import("../api.zig");
 const path = @import("../path.zig");
@@ -8,6 +9,25 @@ const File = std.fs.File;
 const ZvmPaths = path.ZvmPaths;
 const Allocator = std.mem.Allocator;
 
+const SUPPORTED_VERSIONS = &[_][]const u8{
+    "aarch64-linux-gnu",
+    "aarch64-linux-musl",
+    "aarch64-windows-gnu",
+    "aarch64-macos-none",
+    "arm-linux-musleabi",
+    "arm-linux-musleabihf",
+    "i386-linux-musl",
+    "i386-windows-gnu",
+    "powerpc64le-linux-musl",
+    "powerpc64-linux-musl",
+    "powerpc-linux-musl",
+    "riscv64-linux-musl",
+    "x86_64-linux-gnu",
+    "x86_64-linux-musl",
+    "x86_64-windows-gnu",
+    "x86_64-macos-none",
+};
+
 /// Simple Wrapper around `std.mem.eql`
 inline fn strEql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
@@ -16,6 +36,14 @@ inline fn strEql(a: []const u8, b: []const u8) bool {
 /// Simple Wrapper around `std.mem.concat`
 inline fn concat(allocator: Allocator, items: [][]const u8) ![]const u8 {
     return try std.mem.concat(allocator, u8, items);
+}
+
+inline fn contains(haystack: []const []const u8, needle: []const u8) bool {
+    for (haystack) |string| {
+        if (strEql(string, needle)) return true;
+    }
+
+    return false;
 }
 
 pub const usage = @import("./usage.zig").usage;
@@ -57,7 +85,7 @@ fn createAndGetVersionDirectory(paths: *ZvmPaths, version: []const u8) ![]const 
     return version_dir;
 }
 
-fn downloadZigVersion(allocator: Allocator, url: []const u8) ![]const u8 {
+fn downloadZigVersion(allocator: Allocator, url: []const u8, depth: u8) ![]const u8 {
     var client = std.http.Client{
         .allocator = allocator,
     };
@@ -71,7 +99,21 @@ fn downloadZigVersion(allocator: Allocator, url: []const u8) ![]const u8 {
 
     var reader = request.reader();
 
-    return try reader.readAllAlloc(allocator, size.fromMegabytes(50));
+    return reader.readAllAlloc(allocator, size.fromMegabytes(50)) catch |err| switch (err) {
+        error.UnexpectedEndOfStream => {
+            std.log.err("Unexpected End Of Stream. Trying again", .{});
+
+            // try one more time, if it fails again it will panic
+
+            if (depth < 10)
+                return downloadZigVersion(allocator, url, depth + 1)
+            else {
+                std.log.err("Download attempts exceeded 10. Exiting.", .{});
+                return error.FailedToDownload;
+            }
+        },
+        else => unreachable,
+    };
 }
 
 /// If `file_path` doesn't exist, creates it
@@ -86,7 +128,7 @@ fn openFile(file_path: []const u8) !File {
 /// Return the Archive File Path
 /// User must free memory
 fn downloadArchive(allocator: Allocator, version: api.ZigVersion, archive_fp: []const u8) !void {
-    var archive = try downloadZigVersion(allocator, version.version.bootstrap.?.tarball);
+    var archive = try downloadZigVersion(allocator, version.version.bootstrap.?.tarball, 0);
     defer allocator.free(archive);
 
     var archive_file = try openFile(archive_fp);
@@ -115,6 +157,7 @@ fn decompressArchive(allocator: Allocator, archive_fp: []const u8, tarball_fp: [
 }
 
 fn cleanup(tmp_dir: []const u8) !void {
+    std.log.info("Cleaning Temp Dir", .{});
     try std.fs.deleteTreeAbsolute(tmp_dir);
 }
 
@@ -146,9 +189,6 @@ fn installCommands(allocator: Allocator, paths: *ZvmPaths, args: [][]const u8) !
 
         var tmp_version_dir_path = try createAndGetVersionDirectory(paths, tmp_version_name);
         defer allocator.free(tmp_version_dir_path);
-
-        // var version_dir_path = try createAndGetVersionDirectory(paths, target_version);
-        // defer allocator.free(version_dir_path);
 
         std.log.info("Downloading Archive", .{});
         var archive_fp = try paths.getTmpVersionFileWithExt(version_to_install.name, ".tar.xz");
@@ -191,14 +231,26 @@ fn installCommands(allocator: Allocator, paths: *ZvmPaths, args: [][]const u8) !
             }
         }
 
-        // std.fs.renameAbsolute(old_path: []const u8, new_path: []const u8)
-
-        defer cleanup(tmp_version_dir_path) catch {};
+        defer cleanToolchains(allocator, paths) catch |err| {
+            std.log.err("Failed to delete {s}, {!}.", .{ tmp_version_dir_path, err });
+        };
     };
 }
 
-fn cleanToolchains(paths: *ZvmPaths) !void {
-    try std.fs.deleteTreeAbsolute(paths.toolchain_path);
+fn cleanToolchains(allocator: Allocator, paths: *ZvmPaths) !void {
+    var iter_dir = try std.fs.openIterableDirAbsolute(paths.toolchain_path, .{});
+    defer iter_dir.close();
+    var iterator = iter_dir.iterate();
+
+    while (try iterator.next()) |sub_path| {
+        if (std.mem.startsWith(u8, sub_path.name, "tmp-")) {
+            const abs_path = try concat(allocator, &[_][]const u8{ paths.toolchain_path, std.fs.path.sep_str, sub_path.name });
+            defer allocator.free(abs_path);
+            std.log.info("Deleting {s}.", .{abs_path});
+
+            try std.fs.deleteTreeAbsolute(abs_path);
+        }
+    }
 }
 
 /// Execute the given command
@@ -209,7 +261,7 @@ pub fn execute(allocator: Allocator, command: []const u8, args: [][]const u8) !v
     return if (strEql(command, "list")) {
         return try listCommands(allocator, &paths, args);
     } else if (strEql(command, "clean")) {
-        return try cleanToolchains(&paths);
+        return try cleanToolchains(allocator, &paths);
     } else if (strEql(command, "install")) {
         return try installCommands(allocator, &paths, args);
     } else {
