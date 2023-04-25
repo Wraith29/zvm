@@ -1,16 +1,22 @@
 const std = @import("std");
 const commands = @import("./commands/cmd.zig");
 const path = @import("./path.zig");
-const api = @import("./api.zig");
 
 const Allocator = std.mem.Allocator;
 
 pub fn main() !void {
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = general_purpose_allocator.deinit();
-    var allocator = general_purpose_allocator.allocator();
+    var gp_allocator = general_purpose_allocator.allocator();
+    var arena = std.heap.ArenaAllocator.init(gp_allocator);
+    defer arena.deinit();
 
-    var args = try std.process.argsAlloc(allocator);
+    var allocator = arena.allocator();
+
+    var args = std.process.argsAlloc(allocator) catch |err| {
+        std.log.err("Error Reading Args. {!}", .{err});
+        return;
+    };
     defer allocator.free(args);
 
     if (args.len <= 1) {
@@ -18,6 +24,11 @@ pub fn main() !void {
     }
 
     var command = args[1];
+    const args_to_pass = if (args.len < 2) try allocator.alloc([]const u8, 0) else args[2..];
+    defer allocator.free(args_to_pass);
 
-    return try commands.execute(allocator, command, if (args.len < 2) &[0][]const u8{} else args[2..]);
+    return commands.execute(allocator, command, args_to_pass) catch |err| {
+        std.log.err("Failed To Execute Command. {!}", .{err});
+        return;
+    };
 }
