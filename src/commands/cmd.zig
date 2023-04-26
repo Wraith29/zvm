@@ -170,13 +170,13 @@ fn installCommands(allocator: Allocator, paths: *ZvmPaths, args: []const []const
             }
         }
 
-        defer cleanToolchains(allocator, paths) catch |err| {
+        defer cleanTmp(allocator, paths) catch |err| {
             std.log.err("Failed to delete {s}, {!}.", .{ tmp_version_dir_path, err });
         };
     };
 }
 
-fn cleanToolchains(allocator: Allocator, paths: *ZvmPaths) !void {
+fn cleanTmp(allocator: Allocator, paths: *ZvmPaths) !void {
     var iter_dir = try std.fs.openIterableDirAbsolute(paths.toolchain_path, .{});
     defer iter_dir.close();
     var iterator = iter_dir.iterate();
@@ -198,13 +198,10 @@ pub fn execute(allocator: Allocator, command: []const u8, args: []const []const 
     defer paths.deinit();
 
     return if (qol.strEql(command, "list")) {
-        @compileLog("list");
         return listCommands(allocator, &paths, args);
     } else if (qol.strEql(command, "clean")) {
-        @compileLog("clean");
-        return cleanToolchains(allocator, &paths);
+        return cleanTmp(allocator, &paths);
     } else if (qol.strEql(command, "install")) {
-        @compileLog("install");
         return installCommands(allocator, &paths, args);
     } else {
         usage();

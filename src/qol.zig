@@ -7,7 +7,7 @@ pub inline fn strEql(a: []const u8, b: []const u8) bool {
 }
 
 /// Simple Wrapper around `std.mem.concat`
-pub inline fn concat(allocator: Allocator, items: [][]const u8) ![]const u8 {
+pub inline fn concat(allocator: Allocator, items: []const []const u8) ![]const u8 {
     return try std.mem.concat(allocator, u8, items);
 }
 
