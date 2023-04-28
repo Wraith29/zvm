@@ -2,19 +2,18 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const ZigVersion = @import("../ZigVersion.zig");
-
 const Path = @import("../Path.zig");
 const size = @import("../size.zig");
 const qol = @import("../qol.zig");
-
-const File = std.fs.File;
-const Allocator = std.mem.Allocator;
 
 pub const usage = @import("./usage.zig").usage;
 const listCommands = @import("./list.zig").listCommands;
 const installCommands = @import("./install.zig").installCommands;
 
-fn createAndGetVersionDirectory(paths: *Path, version: []const u8) ![]const u8 {
+const File = std.fs.File;
+const Allocator = std.mem.Allocator;
+
+fn createAndGetVersionDirectory(paths: Path, version: []const u8) ![]const u8 {
     var version_dir = try paths.getVersionPath(version);
 
     if (!Path.pathExists(version_dir)) {
@@ -91,7 +90,7 @@ fn cleanup(tmp_dir: []const u8) !void {
     try std.fs.deleteTreeAbsolute(tmp_dir);
 }
 
-// fn installCommands(allocator: Allocator, paths: *Path, args: [][]const u8) !void {
+// fn installCommands(allocator: Allocator, paths: Path, args: [][]const u8) !void {
 //     return if (args.len < 1) {
 //         std.log.err("Missing Parameter: 'version'", .{});
 //     } else {
@@ -167,9 +166,11 @@ fn cleanup(tmp_dir: []const u8) !void {
 //     };
 // }
 
-fn cleanTmp(allocator: Allocator, paths: *Path) !void {
+fn cleanTmp(allocator: Allocator, paths: *const Path) !void {
+    std.log.info("Cleaning Temporary Files / Folders", .{});
     var toolchain_path = try paths.getToolchainPath();
     defer allocator.free(toolchain_path);
+
     var iter_dir = try std.fs.openIterableDirAbsolute(toolchain_path, .{});
     defer iter_dir.close();
     var iterator = iter_dir.iterate();
@@ -187,15 +188,15 @@ fn cleanTmp(allocator: Allocator, paths: *Path) !void {
 
 /// Execute the given command
 pub fn execute(allocator: Allocator, command: []const u8, args: [][]const u8) !void {
-    var paths = try Path.init(allocator);
+    const paths = try Path.init(allocator);
     defer paths.deinit();
 
     return if (qol.strEql(command, "list")) {
-        return listCommands(allocator, &paths, args);
+        return listCommands(allocator, args, &paths);
     } else if (qol.strEql(command, "clean")) {
         return cleanTmp(allocator, &paths);
     } else if (qol.strEql(command, "install")) {
-        return installCommands(allocator, &paths, args);
+        return installCommands(allocator, args, &paths);
     } else {
         usage();
     };

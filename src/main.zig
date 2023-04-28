@@ -10,6 +10,7 @@ pub fn main() !void {
 
     var allocator = arena.allocator();
 
+    std.log.info("Reading cmd args.", .{});
     var args = std.process.argsAlloc(allocator) catch |err| {
         std.log.err("Error Reading Args. {!}", .{err});
         return;
@@ -24,6 +25,7 @@ pub fn main() !void {
     const args_to_pass = if (args.len < 2) try allocator.alloc([]const u8, 0) else args[2..];
     defer allocator.free(args_to_pass);
 
+    std.log.info("Executing Commands", .{});
     return commands.execute(allocator, command, args_to_pass) catch |err| {
         std.log.err("Failed To Execute Command. {!}", .{err});
         return;

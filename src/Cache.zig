@@ -5,7 +5,7 @@ const ZigVersion = @import("./ZigVersion.zig");
 const Path = @import("./Path.zig");
 const size = @import("./size.zig");
 
-const CACHE_URL = "https://ziglang.org/download/index.json";
+const INDEX_URL = "https://ziglang.org/download/index.json";
 const MAX_CACHE_SIZE = size.fromMegabytes(5);
 const Cache = @This();
 
@@ -15,8 +15,9 @@ cache_date: i64,
 versions: []ZigVersion,
 
 pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
-    const json_string = HttpClient.get(allocator, CACHE_URL) catch |err| {
-        std.log.err("Unable to load version info from {s}. {!}", .{ CACHE_URL, err });
+    std.log.info("Requesting Version Data from {s}", .{INDEX_URL});
+    const json_string = HttpClient.get(allocator, INDEX_URL) catch |err| {
+        std.log.err("Unable to load version info from {s}. {!}", .{ INDEX_URL, err });
         return error.CacheLoadError;
     };
     defer allocator.free(json_string);
@@ -24,6 +25,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
     var parser = std.json.Parser.init(allocator, false);
     defer parser.deinit();
 
+    std.log.info("Parsing Version Info", .{});
     var json_obj = try parser.parse(json_string);
     defer json_obj.deinit();
 
@@ -94,4 +96,23 @@ pub fn load(allocator: Allocator, cache_path: []const u8) !Cache {
     var token_stream = std.json.TokenStream.init(contents);
 
     return try std.json.parse(Cache, &token_stream, .{ .allocator = allocator });
+}
+
+pub fn getZigVersions(allocator: Allocator, paths: *const Path) ![]ZigVersion {
+    var cache_path = try paths.getCachePath();
+    defer allocator.free(cache_path);
+
+    std.log.info("Reading Cache From {s}", .{cache_path});
+    var cache = Cache.load(allocator, cache_path) catch try Cache.populate(allocator, cache_path);
+
+    if (cache.cache_date + std.time.ms_per_day < std.time.milliTimestamp()) {
+        std.log.info("Cache out of date, reloading", .{});
+        std.json.parseFree(Cache, cache, .{ .allocator = allocator });
+
+        var updated_cache = try Cache.populate(allocator, cache_path);
+
+        return updated_cache.versions;
+    }
+
+    return cache.versions;
 }

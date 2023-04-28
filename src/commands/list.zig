@@ -2,18 +2,18 @@ const std = @import("std");
 
 const qol = @import("../qol.zig");
 const Path = @import("../Path.zig");
-const ZigVersion = @import("../ZigVersion.zig");
+const Cache = @import("../Cache.zig");
 
 const Allocator = std.mem.Allocator;
 
 pub fn listCommands(
     allocator: Allocator,
-    paths: *Path,
     args: [][]const u8,
+    paths: *const Path,
 ) !void {
     return if (args.len < 1) {
         std.log.info("Listing Available Versions", .{});
-        var versions = try ZigVersion.load(allocator, paths);
+        var versions = try Cache.getZigVersions(allocator, paths);
         defer {
             for (versions) |version| {
                 version.deinit(allocator);

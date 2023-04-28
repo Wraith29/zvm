@@ -37,24 +37,27 @@ pub fn init(allocator: Allocator) !Path {
     };
 }
 
-pub fn deinit(self: *Path) void {
+pub fn deinit(self: *const Path) void {
     self.allocator.free(self.base_path);
 }
 
-pub fn getVersionPath(self: *Path, version: []const u8) ![]const u8 {
-    return try getSubpath(self.allocator, self.toolchain_path, version);
+pub fn getVersionPath(self: *const Path, version: []const u8) ![]const u8 {
+    var toolchain_path = try self.getToolchainPath();
+    defer self.allocator.free(toolchain_path);
+
+    return try getSubpath(self.allocator, toolchain_path, version);
 }
 
-pub fn getTmpVersionPath(self: *Path, version: []const u8) ![]const u8 {
+pub fn getTmpVersionPath(self: *const Path, version: []const u8) ![]const u8 {
     var tmp_version = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "tmp-", version });
 
     return try self.getVersionPath(tmp_version);
 }
 
-pub fn getToolchainPath(self: *Path) ![]const u8 {
+pub fn getToolchainPath(self: *const Path) ![]const u8 {
     return try getSubpath(self.allocator, self.base_path, "toolchains");
 }
 
-pub fn getCachePath(self: *Path) ![]const u8 {
+pub fn getCachePath(self: *const Path) ![]const u8 {
     return try getSubpath(self.allocator, self.base_path, "cache.json");
 }

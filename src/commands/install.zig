@@ -2,16 +2,25 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const Path = @import("../Path.zig");
+const Cache = @import("../Cache.zig");
 const ZigVersion = @import("../ZigVersion.zig");
 const qol = @import("../qol.zig");
 
-pub fn installCommands(allocator: Allocator, paths: *Path, args: [][]const u8) !void {
+fn installVersion(allocator: Allocator, paths: *const Path, version: ZigVersion) !void {
+    var tmp_version_name = try paths.getTmpVersionPath(version.name);
+    defer allocator.free(tmp_version_name);
+
+    std.log.info("{s}", .{tmp_version_name});
+}
+
+pub fn installCommands(allocator: Allocator, args: [][]const u8, paths: *const Path) !void {
     return if (args.len < 1) {
         std.log.err("Missing Parameter: 'version'", .{});
     } else {
         var target_version = args[0];
 
-        var all_versions = try ZigVersion.load(allocator, paths);
+        std.log.info("Loading Versions", .{});
+        var all_versions = try Cache.getZigVersions(allocator, paths);
         defer for (all_versions) |version| {
             version.deinit(allocator);
         };
@@ -25,6 +34,8 @@ pub fn installCommands(allocator: Allocator, paths: *Path, args: [][]const u8) !
             std.log.err("Invalid Version: {s}", .{target_version});
             return;
         };
-        _ = version_to_install;
+
+        std.log.info("Installing Version: {s}", .{version_to_install.name});
+        return installVersion(allocator, paths, version_to_install);
     };
 }

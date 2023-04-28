@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const size = @import("./size.zig");
 
-const MAX_REQUEST_SIZE = size.fromMegabytes(100);
+const MAX_REQUEST_SIZE = size.fromMegabytes(200);
 
 pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
     var client = std.http.Client{ .allocator = allocator };
@@ -13,7 +13,7 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
 
     var recurse_depth: u8 = 0;
 
-    var request = request_blk: while (recurse_depth < 10) : (recurse_depth += 1) {
+    var request: std.http.Client.Request = request_blk: while (recurse_depth < 10) : (recurse_depth += 1) {
         var res = client.request(.GET, uri, .{ .allocator = allocator }, .{}) catch |err| {
             std.log.err("Request {} Failed. {!}", .{ recurse_depth, err });
             continue;
@@ -22,15 +22,33 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
     } else {
         return error.RequestFailed;
     };
+    defer request.deinit();
 
     if (recurse_depth == 10) {
         std.log.err("Failed to Request the Data.", .{});
         return error.DownloadError;
     }
 
+    std.log.info("Received Request", .{});
+
+    try request.finish();
+
+    // var zon_file = try std.fs.cwd().openFile("./req.zon", .{ .mode = .write_only });
+    // defer zon_file.close();
+    // var writer = zon_file.writer();
+
+    // try std.json.stringify(&request, .{ .whitespace = .{ .indent = .{ .Space = 4 } } }, writer);
+
     var reader = request.reader();
-    return reader.readAllAlloc(allocator, MAX_REQUEST_SIZE) catch |err| {
-        std.log.err("Failed to Read the Request. {!}", .{err});
-        return error.ReadError;
-    };
+    
+    var idx: u64 = 0;
+    while (idx < request.response.content_length orelse MAX_REQUEST_SIZE) : (idx += 100) {
+        var buf: [100]u8 = undefined;
+
+        reader.read(buffer: []u8)
+        std.log.info("{s}", .{buf});
+    }
+
+    // var contents = try reader.readAllAlloc(allocator, request.response.content_length orelse MAX_REQUEST_SIZE);
+    // return contents;
 }
