@@ -1,5 +1,9 @@
 # Zig Version Manager
 
+## WARNING
+
+Heavily WIP  (Doesn't work)
+
 ## Usage
 
 * list [-i]
