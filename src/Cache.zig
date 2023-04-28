@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const HttpClient = @import("./HttpClient.zig");
 const ZigVersion = @import("./ZigVersion.zig");
-const path = @import("./path.zig");
+const Path = @import("./Path.zig");
 const size = @import("./size.zig");
 
 const CACHE_URL = "https://ziglang.org/download/index.json";
@@ -73,7 +73,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
 
     try std.json.stringify(cache_obj, .{}, string_writer);
 
-    var cache_file = try path.openFile(cache_path, .{ .mode = .write_only });
+    var cache_file = try Path.openFile(cache_path, .{ .mode = .write_only });
     defer cache_file.close();
 
     var out_blob = try out_string.toOwnedSlice();
@@ -85,7 +85,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
 }
 
 pub fn load(allocator: Allocator, cache_path: []const u8) !Cache {
-    var cache_file = try path.openFile(cache_path, .{});
+    var cache_file = try Path.openFile(cache_path, .{});
     defer cache_file.close();
 
     var contents = try cache_file.reader().readAllAlloc(allocator, MAX_CACHE_SIZE);
