@@ -1,14 +1,15 @@
 const std = @import("std");
-const path = @import("../path.zig");
+
 const qol = @import("../qol.zig");
+const Path = @import("../Path.zig");
 const ZigVersion = @import("../ZigVersion.zig");
 
 const Allocator = std.mem.Allocator;
 
 pub fn listCommands(
     allocator: Allocator,
-    paths: *path.ZvmPaths,
-    args: []const []const u8,
+    paths: *Path,
+    args: [][]const u8,
 ) !void {
     return if (args.len < 1) {
         std.log.info("Listing Available Versions", .{});
@@ -27,7 +28,9 @@ pub fn listCommands(
     } else if (qol.strEql(args[0], "-i") or qol.strEql(args[0], "--installed")) {
         std.log.info("Installed Versions:", .{});
 
-        var tc_dir = try std.fs.openIterableDirAbsolute(paths.toolchain_path, .{});
+        var toolchain_path = try paths.getToolchainPath();
+        defer allocator.free(toolchain_path);
+        var tc_dir = try std.fs.openIterableDirAbsolute(toolchain_path, .{});
         var iter = tc_dir.iterate();
 
         while (try iter.next()) |pth| {

@@ -1,6 +1,6 @@
 const std = @import("std");
 const Cache = @import("./Cache.zig");
-const path = @import("./path.zig");
+const Path = @import("./Path.zig");
 const Allocator = std.mem.Allocator;
 
 const Download = struct {
@@ -26,7 +26,7 @@ pub fn deinit(self: *const ZigVersion, allocator: Allocator) void {
     std.json.parseFree(Details, self.version, .{ .allocator = allocator });
 }
 
-pub fn load(allocator: Allocator, paths: *path.ZvmPaths) ![]ZigVersion {
+pub fn load(allocator: Allocator, paths: *Path) ![]ZigVersion {
     var cache_path = try paths.getCachePath();
     defer allocator.free(paths);
 
