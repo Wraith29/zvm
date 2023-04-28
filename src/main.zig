@@ -1,8 +1,5 @@
 const std = @import("std");
 const commands = @import("./commands/cmd.zig");
-const path = @import("./path.zig");
-
-const Allocator = std.mem.Allocator;
 
 pub fn main() !void {
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
