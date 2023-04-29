@@ -29,9 +29,13 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
         return error.DownloadError;
     }
 
-    std.log.info("Received Request", .{});
+    std.log.info("Waiting the request", .{});
+    request.wait() catch |err| {
+        std.log.err("err waiting the request {!}", .{err});
+    };
+    std.log.info("Request Waited", .{});
 
-    try request.finish();
+    std.log.info("Received Request", .{});
 
     // var zon_file = try std.fs.cwd().openFile("./req.zon", .{ .mode = .write_only });
     // defer zon_file.close();
@@ -41,15 +45,14 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
 
     var reader = request.reader();
 
-    var idx: u64 = 0;
-    while (idx < request.response.content_length orelse MAX_REQUEST_SIZE) : (idx += 100) {
-        var buf: [100]u8 = undefined;
+    // var idx: u64 = 0;
+    // while (idx < request.response.content_length orelse MAX_REQUEST_SIZE) : (idx += 100) {
+    //     var buf: [100]u8 = undefined;
 
-        var read_size = try reader.read(&buf);
-        std.log.info("{s}", .{buf[0..read_size]});
-    }
+    //     var read_size = try reader.read(&buf);
+    //     std.log.info("{s}", .{buf[0..read_size]});
+    // }
 
-    // var contents = try reader.readAllAlloc(allocator, request.response.content_length orelse MAX_REQUEST_SIZE);
-    // return contents;
-    return "";
+    var contents = try reader.readAllAlloc(allocator, request.response.content_length orelse MAX_REQUEST_SIZE);
+    return contents;
 }

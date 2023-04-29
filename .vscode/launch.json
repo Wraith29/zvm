@@ -6,7 +6,7 @@
             "name": "Zig Version Manager",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/zvm.exe",
-            "args": ["install", "0.10.1"],
+            "args": ["list"],
             "cwd": "."
         }
     ]
