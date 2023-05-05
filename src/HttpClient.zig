@@ -29,30 +29,36 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
         return error.DownloadError;
     }
 
-    std.log.info("Waiting the request", .{});
-    request.wait() catch |err| {
-        std.log.err("err waiting the request {!}", .{err});
+    std.log.info("Starting the Request", .{});
+    request.start() catch |err| {
+        std.log.err("Error Starting the Request {!}", .{err});
+        return err;
     };
+
+    std.log.info("Waiting the Request.", .{});
+    request.wait() catch |err| {
+        std.log.err("Error Waiting the request {!}", .{err});
+        return err;
+    };
+
+    std.log.info("Finishing the Request", .{});
+    request.finish() catch |err| {
+        std.log.err("Error Finishing the Request {!}", .{err});
+        return err;
+    };
+
+    if (request.response.status.class() != .success) {
+        std.log.err("Request Failed. {s}", .{request.response.reason});
+        return error.UnsucessfulStatusCode;
+    }
+
     std.log.info("Request Waited", .{});
-
-    std.log.info("Received Request", .{});
-
-    // var zon_file = try std.fs.cwd().openFile("./req.zon", .{ .mode = .write_only });
-    // defer zon_file.close();
-    // var writer = zon_file.writer();
-
-    // try std.json.stringify(&request, .{ .whitespace = .{ .indent = .{ .Space = 4 } } }, writer);
 
     var reader = request.reader();
 
-    // var idx: u64 = 0;
-    // while (idx < request.response.content_length orelse MAX_REQUEST_SIZE) : (idx += 100) {
-    //     var buf: [100]u8 = undefined;
-
-    //     var read_size = try reader.read(&buf);
-    //     std.log.info("{s}", .{buf[0..read_size]});
-    // }
-
+    std.log.info("Reading Request", .{});
     var contents = try reader.readAllAlloc(allocator, request.response.content_length orelse MAX_REQUEST_SIZE);
+
+    std.log.info("Contents Read", .{});
     return contents;
 }

@@ -1,7 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const Download = struct {
+const architecture = @import("./Architecture.zig").getComputerArchitecture() catch @panic("Invalid Computer Architecture");
+
+pub const Download = struct {
     tarball: []const u8,
     shasum: []const u8,
     size: []const u8,
@@ -11,7 +13,7 @@ pub const Details = struct {
     version: ?[]const u8 = null,
     date: ?[]const u8 = null,
     docs: ?[]const u8 = null,
-    src: ?Download = null,
+    download: ?Download = null,
 };
 
 const ZigVersion = @This();

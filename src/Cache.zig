@@ -1,8 +1,12 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
 const Allocator = std.mem.Allocator;
+
 const HttpClient = @import("./HttpClient.zig");
 const ZigVersion = @import("./ZigVersion.zig");
 const Path = @import("./Path.zig");
+const Architecture = @import("./Architecture.zig");
 const size = @import("./size.zig");
 
 const INDEX_URL = "https://ziglang.org/download/index.json";
@@ -15,6 +19,10 @@ cache_date: i64,
 versions: []ZigVersion,
 
 pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
+    const computer_architecture = comptime Architecture.getComputerArchitecture() catch |err| {
+        std.log.err("Unsupported Computer Architecture. {!}", .{err});
+    };
+
     std.log.info("Requesting Version Data from {s}", .{INDEX_URL});
     const json_string = HttpClient.get(allocator, INDEX_URL) catch |err| {
         std.log.err("Unable to load version info from {s}. {!}", .{ INDEX_URL, err });
@@ -36,11 +44,34 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
             var iterator = obj.iterator();
             while (iterator.next()) |value| {
                 var name_buf = try allocator.alloc(u8, value.key_ptr.*.len);
-                std.mem.copy(u8, name_buf, value.key_ptr.*);
+                @memcpy(name_buf, value.key_ptr.*);
 
                 var string = std.ArrayList(u8).init(allocator);
 
                 try value.value_ptr.jsonStringify(.{}, string.writer());
+
+                var download_object = switch (value.value_ptr.*) {
+                    .Object => |inner| blk: {
+                        if (inner.contains(computer_architecture)) {
+                            var download_obj = inner.get(computer_architecture).?;
+                            var download_string = std.ArrayList(u8).init(allocator);
+                            try download_obj.jsonStringify(.{}, download_string.writer());
+
+                            var download_blob = try download_string.toOwnedSlice();
+                            defer allocator.free(download_blob);
+
+                            var download_tokens = std.json.TokenStream.init(download_blob);
+                            var download = try std.json.parse(ZigVersion.Download, &download_tokens, .{
+                                .allocator = allocator,
+                                .ignore_unknown_fields = true,
+                            });
+
+                            break :blk download;
+                        }
+                        break :blk null;
+                    },
+                    else => null,
+                };
 
                 var json_blob = try string.toOwnedSlice();
                 defer allocator.free(json_blob);
@@ -51,6 +82,8 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
                     .allocator = allocator,
                     .ignore_unknown_fields = true,
                 });
+
+                details.download = download_object;
 
                 var version = ZigVersion{
                     .name = name_buf,
@@ -87,15 +120,25 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
 }
 
 pub fn load(allocator: Allocator, cache_path: []const u8) !Cache {
-    var cache_file = try Path.openFile(cache_path, .{});
+    var cache_file = Path.openFile(cache_path, .{}) catch |err| {
+        std.log.err("Failed to open Cache File {!}", .{err});
+        return err;
+    };
     defer cache_file.close();
 
-    var contents = try cache_file.reader().readAllAlloc(allocator, MAX_CACHE_SIZE);
+    var contents = cache_file.reader().readAllAlloc(allocator, MAX_CACHE_SIZE) catch |err| {
+        std.log.err("Failed to read Cache. {!}", .{err});
+        return err;
+    };
     defer allocator.free(contents);
 
     var token_stream = std.json.TokenStream.init(contents);
 
-    return try std.json.parse(Cache, &token_stream, .{ .allocator = allocator });
+    return try std.json.parse(Cache, &token_stream, .{
+        .allocator = allocator,
+        .ignore_unknown_fields = true,
+        .allow_trailing_data = true,
+    });
 }
 
 pub fn getZigVersions(allocator: Allocator, paths: *const Path) ![]ZigVersion {
@@ -103,7 +146,10 @@ pub fn getZigVersions(allocator: Allocator, paths: *const Path) ![]ZigVersion {
     defer allocator.free(cache_path);
 
     std.log.info("Reading Cache From {s}", .{cache_path});
-    var cache = Cache.load(allocator, cache_path) catch try Cache.populate(allocator, cache_path);
+    var cache = Cache.load(allocator, cache_path) catch |err| blk: {
+        std.log.err("Cache Load Failed. Repopulating. {!}", .{err});
+        break :blk try Cache.populate(allocator, cache_path);
+    };
 
     if (cache.cache_date + std.time.ms_per_day < std.time.milliTimestamp()) {
         std.log.info("Cache out of date, reloading", .{});
