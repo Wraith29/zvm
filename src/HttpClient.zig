@@ -52,8 +52,6 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
         return error.UnsucessfulStatusCode;
     }
 
-    std.log.info("Request Waited", .{});
-
     var reader = request.reader();
 
     std.log.info("Reading Request", .{});

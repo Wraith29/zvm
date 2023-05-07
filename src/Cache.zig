@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 const Allocator = std.mem.Allocator;
 
@@ -17,6 +16,10 @@ const Cache = @This();
 cache_date: i64,
 /// The Versions loaded in the Cache
 versions: []ZigVersion,
+
+pub fn forceReload(allocator: Allocator, cache_path: []const u8) !void {
+    _ = try Cache.populate(allocator, cache_path);
+}
 
 pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
     const computer_architecture = comptime Architecture.getComputerArchitecture() catch |err| {

@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const Args = @import("../Args.zig");
 const HttpClient = @import("../HttpClient.zig");
 const Path = @import("../Path.zig");
 const Cache = @import("../Cache.zig");
@@ -21,16 +22,17 @@ fn installVersion(allocator: Allocator, paths: *const Path, version: ZigVersion)
 
     var zip_file = try Path.openFile(zip_file_path, .{ .mode = .write_only });
 
+    std.log.info("Attempting to download: {s}", .{version.version.download.?.tarball});
     var zip_contents = try HttpClient.get(allocator, version.version.download.?.tarball);
 
     try zip_file.writeAll(zip_contents);
 }
 
-pub fn installCommands(allocator: Allocator, args: [][]const u8, paths: *const Path) !void {
-    return if (args.len < 1) {
-        std.log.err("Missing Parameter: 'version'", .{});
-    } else {
-        var target_version = args[0];
+pub fn installCommands(allocator: Allocator, args: *Args, paths: *const Path) !void {
+    return if (args.lenCommands() < 1)
+        std.log.err("Missing Parameter: 'version'", .{})
+    else {
+        var target_version = args.commands.items[1];
 
         std.log.info("Loading Versions", .{});
         var all_versions = try Cache.getZigVersions(allocator, paths);

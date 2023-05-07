@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 /// Simple Wrapper around `std.mem.eql`
-pub inline fn strEql(a: []const u8, b: []const u8) bool {
+pub fn strEql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
 
