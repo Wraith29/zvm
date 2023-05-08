@@ -52,6 +52,8 @@ pub fn installCommands(allocator: Allocator, args: *Args, paths: *const Path) !v
             return;
         };
 
+        try paths.ensureToolchainDirExists();
+
         std.log.info("Installing Version: {s}", .{version_to_install.name});
         return installVersion(allocator, paths, version_to_install);
     };

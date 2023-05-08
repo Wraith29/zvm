@@ -58,6 +58,15 @@ pub fn getToolchainPath(self: *const Path) ![]const u8 {
     return try getSubpath(self.allocator, self.base_path, "toolchains");
 }
 
+pub fn ensureToolchainDirExists(self: *const Path) !void {
+    var tc_path = try self.getToolchainPath();
+    defer self.allocator.free(tc_path);
+
+    if (!pathExists(tc_path)) {
+        try std.fs.makeDirAbsolute(tc_path);
+    }
+}
+
 pub fn getCachePath(self: *const Path) ![]const u8 {
     return try getSubpath(self.allocator, self.base_path, "cache.json");
 }
