@@ -1,6 +1,7 @@
 const std = @import("std");
 
-const Args = @import("../Args.zig");
+const ArgParser = @import("../ArgParser.zig").ArgParser;
+const Commands = @import("./commands.zig").Commands;
 const qol = @import("../qol.zig");
 const Path = @import("../Path.zig");
 const Cache = @import("../Cache.zig");
@@ -32,20 +33,13 @@ fn listInstalledVersions(allocator: Allocator, paths: *const Path) !void {
     }
 }
 
-pub fn listCommands(
+pub fn execute(
     allocator: Allocator,
-    args: *Args,
+    args: *ArgParser(Commands),
     paths: *const Path,
 ) !void {
-    if (args.hasFlag("-rc") or args.hasFlag("--reload-cache")) {
-        std.log.info("Reload Cache Flag Detected. Reloading", .{});
-        var cache_path = try paths.getCachePath();
-        try Cache.forceReload(allocator, cache_path);
-        allocator.free(cache_path);
-    }
-
-    return if (args.hasFlag("-i") or args.hasFlag("--installed"))
-        listInstalledVersions(allocator, paths)
+    if (args.hasFlag("-i") or args.hasFlag("--installed"))
+        return listInstalledVersions(allocator, paths)
     else
-        listAvailableVersions(allocator, paths);
+        return listAvailableVersions(allocator, paths);
 }

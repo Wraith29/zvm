@@ -1,6 +1,7 @@
 const std = @import("std");
-const commands = @import("./commands/cmd.zig");
-const Args = @import("./Args.zig");
+const cmd = @import("./commands/cmd.zig");
+const Commands = @import("./commands/commands.zig").Commands;
+const ArgParser = @import("./ArgParser.zig").ArgParser;
 
 pub fn main() !void {
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
@@ -18,18 +19,17 @@ pub fn main() !void {
     };
     defer allocator.free(args);
 
-    if (args.len <= 1) {
-        return commands.usage();
-    }
-
-    var parsed_args = Args.init(allocator);
+    var parsed_args = ArgParser(Commands).init(
+        allocator,
+        &[_][]const u8{ "usage", "list", "install" },
+    );
     defer parsed_args.deinit();
 
     // Gives everything except for the executable name
     try parsed_args.parse(args[1..]);
 
     std.log.info("Executing Commands", .{});
-    return commands.execute(allocator, &parsed_args) catch |err| {
+    return cmd.execute(allocator, &parsed_args) catch |err| {
         std.log.err("Failed To Execute Command. {!}", .{err});
         return;
     };

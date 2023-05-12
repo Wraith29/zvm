@@ -3,26 +3,39 @@ const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 
 const Path = @import("../Path.zig");
-const Args = @import("../Args.zig");
-const qol = @import("../qol.zig");
+const ArgParser = @import("../ArgParser.zig").ArgParser;
+const Commands = @import("./commands.zig").Commands;
+const Cache = @import("../Cache.zig");
+const usage = @import("./usage.zig").usage;
 
-pub const usage = @import("./usage.zig").usage;
-const listCommands = @import("./list.zig").listCommands;
-const installCommands = @import("./install.zig").installCommands;
+// pub const usage = @import("./usage.zig").usage;
+// const listCommands = @import("./list.zig").listCommands;
+// const installCommands = @import("./install.zig").installCommands;
 
 /// Execute the given command
-pub fn execute(allocator: Allocator, args: *Args) !void {
-    var main_command = args.commands.items[0];
-
+pub fn execute(allocator: Allocator, args: *ArgParser(Commands)) !void {
     const paths = try Path.init(allocator);
     defer paths.deinit();
 
-    for (args.flags.items) |flag| std.log.info("Flag: {s}", .{flag});
+    if (args.hasFlag("-rc") or args.hasFlag("--reload-cache")) {
+        var cache_path = try paths.getCachePath();
+        try Cache.forceReload(allocator, cache_path);
 
-    return if (qol.strEql(main_command, "list"))
-        listCommands(allocator, args, &paths)
-    else if (qol.strEql(main_command, "install"))
-        installCommands(allocator, args, &paths)
-    else
-        usage();
+        allocator.free(cache_path);
+    }
+
+    if (args.command == null)
+        return usage();
+
+    switch (args.command.?) {
+        .list => {
+            try @import("./list.zig").execute(allocator, args, &paths);
+        },
+        .install => {
+            try @import("./install.zig").execute(allocator, args, &paths);
+        },
+        else => {
+            usage();
+        },
+    }
 }
