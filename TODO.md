@@ -16,3 +16,5 @@
   * [ ] Implement own zip decompressor
   * [ ] Bundle `7z` exe with release?
   * [ ] Add a Zig package with zip decompression
+* [ ] Improve Arg Parser
+  * [ ] Provide list of valid commands
