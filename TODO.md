@@ -11,3 +11,8 @@
   * [ ] Delete -> Allow the user to delete an installed version
   * [ ] Latest -> Allow the user to install latest master build
     * ^ Will require deleting current master before re-installing
+* [ ] Remove `7z` dependency
+  * Options:
+  * [ ] Implement own zip decompressor
+  * [ ] Bundle `7z` exe with release?
+  * [ ] Add a Zig package with zip decompression
