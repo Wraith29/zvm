@@ -1,8 +1,7 @@
 # Zig Version Manager
 
-## WARNING
-
-Heavily WIP  (Doesn't work)
+As of right now, this will only work on x86_64 Windows machines,
+I am looking to improve this, but it will take a while.
 
 ## Usage
 
@@ -11,11 +10,8 @@ Heavily WIP  (Doesn't work)
 * install \<version>
   * attempt to install the specified version
 
-## Structure
+## Requirements
 
-* User/MyUser/AppData/Local/.zvm
-  * tmp-toolchains
-    * master.zip
-  * toolchains
-    * master
-  * cache.json
+* `7z` executable on Path
+* `pwsh` executable on Path
+* `ZIG_PATH` Environment Variable, added to Path.
