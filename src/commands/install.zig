@@ -1,7 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const Args = @import("../Args.zig");
+const ArgParser = @import("../ArgParser.zig").ArgParser;
+const Commands = @import("./commands.zig").Commands;
 const HttpClient = @import("../HttpClient.zig");
 const Path = @import("../Path.zig");
 const Cache = @import("../Cache.zig");
@@ -85,7 +86,7 @@ fn installVersion(allocator: Allocator, paths: *const Path, version: ZigVersion)
     std.log.info("Removing Temporary Files", .{});
     try cleanUpTempDir(paths);
 
-    var new_zig_path =try paths.getVersionPath(version.name);
+    var new_zig_path = try paths.getVersionPath(version.name);
 
     var sym_link_path = try qol.concat(
         allocator,
@@ -99,11 +100,11 @@ fn installVersion(allocator: Allocator, paths: *const Path, version: ZigVersion)
     try std.fs.symLinkAbsolute(new_zig_path, sym_link_path, .{ .is_directory = true });
 }
 
-pub fn installCommands(allocator: Allocator, args: *Args, paths: *const Path) !void {
-    return if (args.lenCommands() < 1)
+pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
+    return if (args.numArgs() < 1)
         std.log.err("Missing Parameter: 'version'", .{})
     else {
-        var target_version = args.commands.items[1];
+        var target_version = args.args.items[0];
 
         std.log.info("Loading Versions", .{});
         var all_versions = try Cache.getZigVersions(allocator, paths);
