@@ -9,7 +9,6 @@ const Cache = @import("../Cache.zig");
 const Allocator = std.mem.Allocator;
 
 fn listAvailableVersions(allocator: Allocator, paths: *const Path) !void {
-    std.log.info("Listing Available Versions", .{});
     var versions = try Cache.getZigVersions(allocator, paths);
     defer {
         for (versions) |version| version.deinit(allocator);
@@ -22,7 +21,6 @@ fn listAvailableVersions(allocator: Allocator, paths: *const Path) !void {
 }
 
 fn listInstalledVersions(allocator: Allocator, paths: *const Path) !void {
-    std.log.info("Installed Versions: ", .{});
     var toolchain_path = try paths.getToolchainPath();
     defer allocator.free(toolchain_path);
     var tc_dir = try std.fs.openIterableDirAbsolute(toolchain_path, .{});

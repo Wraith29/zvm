@@ -8,17 +8,10 @@ const Commands = @import("./commands.zig").Commands;
 const Cache = @import("../Cache.zig");
 const usage = @import("./usage.zig").usage;
 
-// pub const usage = @import("./usage.zig").usage;
-// const listCommands = @import("./list.zig").listCommands;
-// const installCommands = @import("./install.zig").installCommands;
-
 /// Execute the given command
-pub fn execute(allocator: Allocator, args: *ArgParser(Commands)) !void {
-    const paths = try Path.init(allocator);
-    defer paths.deinit();
-
+pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
     if (args.hasFlag("-rc") or args.hasFlag("--reload-cache")) {
-        var cache_path = try paths.getCachePath();
+        var cache_path = try paths.getFilePath("cache.json");
         try Cache.forceReload(allocator, cache_path);
 
         allocator.free(cache_path);
@@ -29,10 +22,10 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands)) !void {
 
     switch (args.command.?) {
         .list => {
-            try @import("./list.zig").execute(allocator, args, &paths);
+            try @import("./list.zig").execute(allocator, args, paths);
         },
         .install => {
-            try @import("./install.zig").execute(allocator, args, &paths);
+            try @import("./install.zig").execute(allocator, args, paths);
         },
         else => {
             usage();

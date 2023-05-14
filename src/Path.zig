@@ -31,14 +31,6 @@ pub fn init(allocator: Allocator) !Path {
     var base = try std.fs.getAppDataDir(allocator, ".zvm");
     if (!pathExists(base)) try std.fs.makeDirAbsolute(base);
 
-    // var zig_path = try getSubpath(allocator, base, "zig");
-    // if (!pathExists(zig_path)) try std.fs.makeDirAbsolute(zig_path);
-    // allocator.free(zig_path);
-
-    var toolchain_path = try getSubpath(allocator, base, "toolchains");
-    if (!pathExists(toolchain_path)) try std.fs.makeDirAbsolute(toolchain_path);
-    allocator.free(toolchain_path);
-
     return Path{
         .allocator = allocator,
         .base_path = base,
@@ -47,6 +39,24 @@ pub fn init(allocator: Allocator) !Path {
 
 pub fn deinit(self: *const Path) void {
     self.allocator.free(self.base_path);
+}
+
+pub fn setup(self: *const Path) !void {
+    var toolchain_path = try self.getToolchainPath();
+    if (!pathExists(toolchain_path)) try std.fs.makeDirAbsolute(toolchain_path);
+    self.allocator.free(toolchain_path);
+
+    var cache_path = try self.getFilePath("cache.json");
+    if (!pathExists(cache_path)) (try std.fs.createFileAbsolute(cache_path, .{})).close();
+    self.allocator.free(cache_path);
+
+    var settings_path = try self.getFilePath("settings.json");
+    if (!pathExists(settings_path)) (try std.fs.createFileAbsolute(settings_path, .{})).close();
+    self.allocator.free(settings_path);
+}
+
+pub fn getFilePath(self: *const Path, file_name: []const u8) ![]const u8 {
+    return try getSubpath(self.allocator, self.base_path, file_name);
 }
 
 pub fn getVersionPath(self: *const Path, version: []const u8) ![]const u8 {
@@ -77,17 +87,4 @@ pub fn getTmpToolchainPath(self: *const Path) ![]const u8 {
     }
 
     return tmp;
-}
-
-pub fn ensureToolchainDirExists(self: *const Path) !void {
-    var tc_path = try self.getToolchainPath();
-    defer self.allocator.free(tc_path);
-
-    if (!pathExists(tc_path)) {
-        try std.fs.makeDirAbsolute(tc_path);
-    }
-}
-
-pub fn getCachePath(self: *const Path) ![]const u8 {
-    return try getSubpath(self.allocator, self.base_path, "cache.json");
 }

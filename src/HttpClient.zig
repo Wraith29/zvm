@@ -29,19 +29,16 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
         return error.DownloadError;
     }
 
-    std.log.info("Starting the Request", .{});
     request.start() catch |err| {
         std.log.err("Error Starting the Request {!}", .{err});
         return err;
     };
 
-    std.log.info("Waiting the Request.", .{});
     request.wait() catch |err| {
         std.log.err("Error Waiting the request {!}", .{err});
         return err;
     };
 
-    std.log.info("Finishing the Request", .{});
     request.finish() catch |err| {
         std.log.err("Error Finishing the Request {!}", .{err});
         return err;
@@ -54,9 +51,7 @@ pub fn get(allocator: Allocator, url: []const u8) ![]const u8 {
 
     var reader = request.reader();
 
-    std.log.info("Reading Request", .{});
     var contents = try reader.readAllAlloc(allocator, request.response.content_length orelse MAX_REQUEST_SIZE);
 
-    std.log.info("Contents Read", .{});
     return contents;
 }

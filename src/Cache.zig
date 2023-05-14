@@ -26,17 +26,16 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
         std.log.err("Unsupported Computer Architecture. {!}", .{err});
     };
 
-    std.log.info("Requesting Version Data from {s}", .{INDEX_URL});
-    const json_string = HttpClient.get(allocator, INDEX_URL) catch |err| {
-        std.log.err("Unable to load version info from {s}. {!}", .{ INDEX_URL, err });
-        return error.CacheLoadError;
-    };
+    const json_string = "{\"hello\": \"world\"}";
+    // HttpClient.get(allocator, INDEX_URL) catch |err| {
+    //     std.log.err("Unable to load version info from {s}. {!}", .{ INDEX_URL, err });
+    //     return error.CacheLoadError;
+    // };
     defer allocator.free(json_string);
 
     var parser = std.json.Parser.init(allocator, false);
     defer parser.deinit();
 
-    std.log.info("Parsing Version Info", .{});
     var json_obj = try parser.parse(json_string);
     defer json_obj.deinit();
 
@@ -145,17 +144,15 @@ pub fn load(allocator: Allocator, cache_path: []const u8) !Cache {
 }
 
 pub fn getZigVersions(allocator: Allocator, paths: *const Path) ![]ZigVersion {
-    var cache_path = try paths.getCachePath();
+    var cache_path = try paths.getFilePath("cache.json");
     defer allocator.free(cache_path);
 
-    std.log.info("Reading Cache From {s}", .{cache_path});
     var cache = Cache.load(allocator, cache_path) catch |err| blk: {
         std.log.err("Cache Load Failed. Repopulating. {!}", .{err});
         break :blk try Cache.populate(allocator, cache_path);
     };
 
     if (cache.cache_date + std.time.ms_per_day < std.time.milliTimestamp()) {
-        std.log.info("Cache out of date, reloading", .{});
         std.json.parseFree(Cache, cache, .{ .allocator = allocator });
 
         var updated_cache = try Cache.populate(allocator, cache_path);
