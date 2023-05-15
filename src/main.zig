@@ -22,7 +22,7 @@ pub fn main() !void {
 
     var parsed_args = ArgParser(Commands).init(
         allocator,
-        &[_][]const u8{ "usage", "list", "install" },
+        &[_][]const u8{ "usage", "list", "install", "select", "use" },
     );
     defer parsed_args.deinit();
 
@@ -40,7 +40,7 @@ pub fn main() !void {
 }
 
 test {
-    _ = @import("./list.zig");
-
     std.testing.refAllDecls(@This());
+    _ = @import("./list.zig");
+    _ = @import("./ArgParser.zig");
 }
