@@ -72,3 +72,31 @@ pub fn ArgParser(comptime T: type) type {
         }
     };
 }
+
+test "ArgParser - Basics" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    const TestEnum = enum {
+        test_a,
+        test_b,
+
+        fn fromString(s: []const u8) @This() {
+            if (std.mem.eql(u8, s, "test_a"))
+                return .test_a
+            else
+                return .test_b;
+        }
+    };
+
+    var arg_parser = ArgParser(TestEnum).init(allocator, &[_][]const u8{ "test_a", "test_b" });
+    defer arg_parser.deinit();
+
+    try expect(arg_parser.command == null);
+
+    try arg_parser.parse(&[_][]const u8{"test_a"});
+
+    try expect(arg_parser.command != null);
+    try expect(arg_parser.command.? == .test_a);
+    try expect(arg_parser.numArgs() == 0);
+    try expect(arg_parser.flags.len() == 0);
+}
