@@ -26,6 +26,7 @@ fn listInstalledVersions(allocator: Allocator, paths: *const Path) !void {
     var tc_dir = try std.fs.openIterableDirAbsolute(toolchain_path, .{});
     var iter = tc_dir.iterate();
 
+    std.log.info("Installed Versions: ", .{});
     while (try iter.next()) |pth| {
         std.log.info("  {s}", .{pth.name});
     }

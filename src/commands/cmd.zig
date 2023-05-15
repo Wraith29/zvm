@@ -7,6 +7,9 @@ const ArgParser = @import("../ArgParser.zig").ArgParser;
 const Commands = @import("./commands.zig").Commands;
 const Cache = @import("../Cache.zig");
 const usage = @import("./usage.zig").usage;
+const list = @import("./list.zig");
+const install = @import("./install.zig");
+const versions = @import("./versions.zig");
 
 /// Execute the given command
 pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
@@ -22,10 +25,13 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
 
     switch (args.command.?) {
         .list => {
-            try @import("./list.zig").execute(allocator, args, paths);
+            try list.execute(allocator, args, paths);
         },
         .install => {
-            try @import("./install.zig").execute(allocator, args, paths);
+            try install.execute(allocator, args, paths);
+        },
+        .select => {
+            try versions.execute(allocator, args, paths);
         },
         else => {
             usage();

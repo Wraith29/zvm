@@ -7,6 +7,7 @@ const HttpClient = @import("../HttpClient.zig");
 const Path = @import("../Path.zig");
 const Cache = @import("../Cache.zig");
 const ZigVersion = @import("../ZigVersion.zig");
+const versions = @import("./versions.zig");
 const qol = @import("../qol.zig");
 
 fn downloadAndWriteZipFile(allocator: Allocator, paths: *const Path, version: ZigVersion) !void {
@@ -77,52 +78,41 @@ fn cleanUpTempDir(paths: *const Path) !void {
 }
 
 fn installVersion(allocator: Allocator, paths: *const Path, version: ZigVersion) !void {
-    // try downloadAndWriteZipFile(allocator, paths, version);
+    try downloadAndWriteZipFile(allocator, paths, version);
     try extractZip(allocator, paths, version);
     try moveExtractedZipToToolchainPath(allocator, paths, version);
     try cleanUpTempDir(paths);
+    try versions.select(allocator, paths, version.name);
+}
 
-    var new_zig_path = try paths.getVersionPath(version.name);
+fn isAlreadyInstalled(allocator: Allocator, paths: *const Path, version: []const u8) !bool {
+    var toolchain_dir = try paths.getToolchainPath();
+    defer allocator.free(toolchain_dir);
 
-    var sym_link_path = try qol.concat(
-        allocator,
-        &[_][]const u8{
-            paths.base_path,
-            std.fs.path.sep_str,
-            "zig",
-        },
-    );
+    var iterable_dir = try std.fs.openIterableDirAbsolute(toolchain_dir, .{});
+    defer iterable_dir.close();
+    var iterator = iterable_dir.iterate();
 
-    if (Path.pathExists(sym_link_path)) {
-        try std.fs.deleteTreeAbsolute(sym_link_path);
+    while (try iterator.next()) |entry| {
+        if (qol.strEql(entry.name, version)) return true;
     }
-
-    try std.fs.symLinkAbsolute(new_zig_path, sym_link_path, .{ .is_directory = true });
+    return false;
 }
 
 pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
     return if (args.numArgs() < 1)
         std.log.err("Missing Parameter: 'version'", .{})
     else {
-        var target_version = args.args.items[0];
+        var target_version = try versions.getTargetVersion(allocator, args, paths);
+        defer target_version.deinit(allocator);
 
-        var all_versions = try Cache.getZigVersions(allocator, paths);
-        defer {
-            for (all_versions) |version| {
-                version.deinit(allocator);
-            }
-            allocator.free(all_versions);
+        if (try versions.isAlreadyInstalled(allocator, paths, target_version.name)) {
+            std.log.info("{s} is already installed.", .{target_version.name});
+            try versions.select(allocator, paths, target_version.name);
+            return;
         }
 
-        var version_to_install = blk: {
-            for (all_versions) |version| {
-                if (qol.strEql(target_version, version.name)) break :blk version;
-            }
-
-            std.log.err("Invalid Version: {s}", .{target_version});
-            return;
-        };
-
-        return installVersion(allocator, paths, version_to_install);
+        std.log.info("Installing {s}", .{target_version.name});
+        return installVersion(allocator, paths, target_version);
     };
 }
