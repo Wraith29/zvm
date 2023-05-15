@@ -23,8 +23,5 @@ version: Details,
 
 pub fn deinit(self: *const ZigVersion, allocator: Allocator) void {
     allocator.free(self.name);
-    // if (self.version.download) |download| {
-    //     std.json.parseFree(Download, download, .{ .allocator = allocator });
-    // }
     std.json.parseFree(Details, self.version, .{ .allocator = allocator });
 }
