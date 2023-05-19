@@ -33,7 +33,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
     };
     defer allocator.free(json_string);
 
-    var parser = std.json.Parser.init(allocator, false);
+    var parser = std.json.Parser.init(allocator, .alloc_if_needed);
     defer parser.deinit();
 
     std.log.info("Parsing JSON", .{});
@@ -43,7 +43,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
     var versions = std.ArrayList(ZigVersion).init(allocator);
 
     switch (json_obj.root) {
-        .Object => |obj| {
+        .object => |obj| {
             var iterator = obj.iterator();
             while (iterator.next()) |value| {
                 var name_buf = try allocator.alloc(u8, value.key_ptr.*.len);
@@ -54,7 +54,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
                 try value.value_ptr.jsonStringify(.{}, string.writer());
 
                 var download_object = switch (value.value_ptr.*) {
-                    .Object => |inner| blk: {
+                    .object => |inner| blk: {
                         if (inner.contains(computer_architecture)) {
                             var download_obj = inner.get(computer_architecture).?;
                             var download_string = std.ArrayList(u8).init(allocator);
@@ -63,11 +63,7 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
                             var download_blob = try download_string.toOwnedSlice();
                             defer allocator.free(download_blob);
 
-                            var download_tokens = std.json.TokenStream.init(download_blob);
-                            var download = try std.json.parse(ZigVersion.Download, &download_tokens, .{
-                                .allocator = allocator,
-                                .ignore_unknown_fields = true,
-                            });
+                            var download = try std.json.parseFromSlice(ZigVersion.Download, allocator, download_blob, .{ .ignore_unknown_fields = true });
 
                             break :blk download;
                         }
@@ -79,12 +75,12 @@ pub fn populate(allocator: Allocator, cache_path: []const u8) !Cache {
                 var json_blob = try string.toOwnedSlice();
                 defer allocator.free(json_blob);
 
-                var token_stream = std.json.TokenStream.init(json_blob);
-
-                var details = try std.json.parse(ZigVersion.Details, &token_stream, .{
-                    .allocator = allocator,
-                    .ignore_unknown_fields = true,
-                });
+                var details = try std.json.parseFromSlice(
+                    ZigVersion.Details,
+                    allocator,
+                    json_blob,
+                    .{ .ignore_unknown_fields = true },
+                );
 
                 details.download = download_object;
 
@@ -136,13 +132,12 @@ pub fn load(allocator: Allocator, cache_path: []const u8) !Cache {
     };
     defer allocator.free(contents);
 
-    var token_stream = std.json.TokenStream.init(contents);
-
-    return try std.json.parse(Cache, &token_stream, .{
-        .allocator = allocator,
-        .ignore_unknown_fields = true,
-        .allow_trailing_data = true,
-    });
+    return try std.json.parseFromSlice(
+        Cache,
+        allocator,
+        contents,
+        .{ .ignore_unknown_fields = true },
+    );
 }
 
 pub fn getZigVersions(allocator: Allocator, paths: *const Path) ![]ZigVersion {
@@ -158,7 +153,7 @@ pub fn getZigVersions(allocator: Allocator, paths: *const Path) ![]ZigVersion {
     std.log.info("Checking Cache Date", .{});
     if (cache.cache_date + std.time.ms_per_day < std.time.milliTimestamp()) {
         std.log.info("Cache Outdated", .{});
-        std.json.parseFree(Cache, cache, .{ .allocator = allocator });
+        std.json.parseFree(Cache, allocator, cache);
 
         std.log.info("Updating Cache", .{});
         var updated_cache = try Cache.populate(allocator, cache_path);
