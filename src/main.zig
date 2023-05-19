@@ -7,12 +7,12 @@ const Path = @import("./Path.zig");
 pub fn main() !void {
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = general_purpose_allocator.deinit();
-    var allocator = general_purpose_allocator.allocator();
+    var gp_allocator = general_purpose_allocator.allocator();
 
-    // var arena = std.heap.ArenaAllocator.init(gp_allocator);
-    // defer arena.deinit();
+    var arena = std.heap.ArenaAllocator.init(gp_allocator);
+    defer arena.deinit();
 
-    // var allocator = arena.allocator();
+    var allocator = arena.allocator();
 
     var args = std.process.argsAlloc(allocator) catch |err| {
         std.log.err("Error Reading Args. {!}", .{err});
