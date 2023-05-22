@@ -22,17 +22,30 @@ pub fn isAlreadyInstalled(allocator: Allocator, paths: *const Path, version: []c
 }
 
 pub fn select(allocator: Allocator, paths: *const Path, version: []const u8) !void {
-    var new_path = try paths.getVersionPath(version);
-    defer allocator.free(new_path);
+    var target_path = try paths.getVersionPath(version);
+    defer allocator.free(target_path);
+    std.log.info("Obtained Version Path: {s}", .{target_path});
 
     var sym_path = try qol.concat(allocator, &[_][]const u8{ paths.base_path, std.fs.path.sep_str, "zig" });
     defer allocator.free(sym_path);
+    std.log.info("SymPath: {s}", .{sym_path});
 
     if (Path.pathExists(sym_path)) {
-        try std.fs.deleteTreeAbsolute(sym_path);
+        std.log.info("Deleting Existing Path", .{});
+        std.fs.deleteTreeAbsolute(sym_path) catch |err| {
+            std.log.err("Failed to delete {s}", .{sym_path});
+            return err;
+        };
     }
 
-    try std.fs.symLinkAbsolute(new_path, sym_path, .{ .is_directory = true });
+    std.debug.assert(!Path.pathExists(sym_path));
+
+    std.log.info("Creating SymLink", .{});
+
+    std.fs.symLinkAbsolute(target_path, sym_path, .{ .is_directory = true }) catch |err| {
+        std.log.err("Error Creating SymLink {!}", .{err});
+        return err;
+    };
 }
 
 pub fn getTargetVersion(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !ZigVersion {

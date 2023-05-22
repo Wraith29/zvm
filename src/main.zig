@@ -22,7 +22,7 @@ pub fn main() !void {
 
     var parsed_args = ArgParser(Commands).init(
         allocator,
-        &[_][]const u8{ "usage", "list", "install", "select", "use" },
+        &[_][]const u8{ "usage", "list", "install", "select", "use", "current" },
     );
     defer parsed_args.deinit();
 

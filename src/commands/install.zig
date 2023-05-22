@@ -14,8 +14,10 @@ fn downloadAndWriteZipFile(allocator: Allocator, paths: *const Path, version: Zi
     var zip_file_path = try qol.concat(allocator, &[_][]const u8{ try paths.getTmpVersionPath(version.name), ".zip" });
     defer allocator.free(zip_file_path);
 
+    std.log.info("Downloading {s}", .{version.version.download.?.tarball});
     var zip_contents = try HttpClient.get(allocator, version.version.download.?.tarball);
     defer allocator.free(zip_contents);
+    std.log.info("Downloaded", .{});
 
     var zip_file = try Path.openFile(zip_file_path, .{ .mode = .write_only });
     defer zip_file.close();
@@ -24,21 +26,38 @@ fn downloadAndWriteZipFile(allocator: Allocator, paths: *const Path, version: Zi
 }
 
 fn extractZip(allocator: Allocator, paths: *const Path, version: ZigVersion) !void {
-    var out_path = try qol.concat(allocator, &[_][]const u8{ "-o", try paths.getTmpVersionPath(version.name) });
+    var tmp_version_path = try paths.getTmpVersionPath(version.name);
+    defer allocator.free(tmp_version_path);
+    if (!Path.pathExists(tmp_version_path)) try std.fs.makeDirAbsolute(tmp_version_path);
+
+    var out_path = try qol.concat(allocator, &[_][]const u8{ "-o", tmp_version_path });
     defer allocator.free(out_path);
+    std.log.info("Output Path: {s}", .{out_path});
 
     var zip_path = try qol.concat(allocator, &[_][]const u8{ try paths.getTmpVersionPath(version.name), ".zip" });
     defer allocator.free(zip_path);
+    std.log.info("Zip Path: {s}", .{zip_path});
 
-    _ = try std.ChildProcess.exec(.{
+    std.log.info("Extracting {s}", .{zip_path});
+    _ = std.ChildProcess.exec(.{
         .allocator = allocator,
         .argv = &[_][]const u8{ "7z", "x", out_path, zip_path },
-    });
+    }) catch |err| {
+        if (err == error.FileNotFound) {
+            std.log.err("7z not found on your system, please install it and add it to your Path.", .{});
+            return error.MissingRequiredTool;
+        }
+
+        std.log.err("Failed to extract Zip {!}", .{err});
+        return err;
+    };
 }
 
 fn moveExtractedZipToToolchainPath(allocator: Allocator, paths: *const Path, version: ZigVersion) !void {
+    std.log.info("Getting the temporary version path", .{});
     var outer = try paths.getTmpVersionPath(version.name);
 
+    std.log.info("Opening {s}", .{outer});
     var outer_dir_iter = try std.fs.openIterableDirAbsolute(outer, .{});
     defer outer_dir_iter.close();
 
