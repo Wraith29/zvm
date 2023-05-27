@@ -69,7 +69,6 @@ pub fn setup(self: *const Path) !void {
 
         var cmd = try command_string.toOwnedSlice();
 
-        std.log.info("Creating ZIG_PATH Environment Variable", .{});
         _ = try std.ChildProcess.exec(.{
             .allocator = self.allocator,
             .argv = &[_][]const u8{ "pwsh", "-Command", cmd },

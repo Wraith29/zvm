@@ -35,7 +35,7 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
             try versions.execute(allocator, args, paths);
         },
         .current => {
-            try current.execute(allocator, args, paths);
+            try current.execute(allocator);
         },
         else => {
             usage();
