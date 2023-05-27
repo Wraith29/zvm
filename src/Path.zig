@@ -60,23 +60,20 @@ pub fn setup(self: *const Path) !void {
     if (!pathExists(sym_path)) try std.fs.makeDirAbsolute(sym_path);
     if (builtin.os.tag == .windows) {
         var command_string = std.ArrayList(u8).init(self.allocator);
+
         try std.fmt.format(
             command_string.writer(),
-            "-Command $env:ZIG_PATH = {s}",
-            // "[System.Environment]::SetEnvironmentVariable(\"ZIG_PATH\", \"{s}\");",
+            "{{[System.Environment]::SetEnvironmentVariable(\"ZIG_PATH\", \"{s}\", \"User\")}}",
             .{sym_path},
         );
 
         var cmd = try command_string.toOwnedSlice();
 
         std.log.info("Creating ZIG_PATH Environment Variable", .{});
-        var result = try std.ChildProcess.exec(.{
+        _ = try std.ChildProcess.exec(.{
             .allocator = self.allocator,
-            .argv = &[_][]const u8{ "pwsh", cmd },
+            .argv = &[_][]const u8{ "pwsh", "-Command", cmd },
         });
-
-        std.log.info("STDOUT: {s}", .{result.stdout});
-        std.log.info("STDERR: {s}", .{result.stderr});
     }
 }
 
