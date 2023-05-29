@@ -6,7 +6,7 @@
   * Stuff like:
   * [x] Exit early on trying to install existing version
   * [x] If Paths exist, don't error trying to create them
-* [ ] More Options
+* [x] More Options
   * [x] Select -> Allow the user to select from installed versions
   * [x] Delete -> Allow the user to delete an installed version
   * [x] Latest -> Allow the user to install latest master build
