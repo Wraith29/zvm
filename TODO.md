@@ -8,7 +8,7 @@
   * [x] If Paths exist, don't error trying to create them
 * [ ] More Options
   * [x] Select -> Allow the user to select from installed versions
-  * [ ] Delete -> Allow the user to delete an installed version
+  * [x] Delete -> Allow the user to delete an installed version
   * [x] Latest -> Allow the user to install latest master build
     * ^ Will require deleting current master before re-installing
   * [x] Current -> Write Current selected version to stdout

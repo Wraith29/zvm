@@ -40,6 +40,9 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
         .current => {
             try current.execute(allocator);
         },
+        .delete => {
+            try versions.delete(allocator, args, paths);
+        },
         else => {
             usage();
         },

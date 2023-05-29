@@ -103,3 +103,18 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
 
     try select(allocator, paths, target_version.name);
 }
+
+pub fn delete(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
+    var target_version = try getTargetVersion(allocator, args, paths);
+    defer target_version.deinit(allocator);
+
+    if (!try isAlreadyInstalled(allocator, paths, target_version.name)) {
+        std.log.err("Failed to delete {s} as it is not installed.", .{target_version.name});
+        return;
+    }
+
+    var version_path = try paths.getVersionPath(target_version.name);
+    defer allocator.free(version_path);
+
+    try std.fs.deleteTreeAbsolute(version_path);
+}
