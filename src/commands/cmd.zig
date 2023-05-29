@@ -10,6 +10,7 @@ const usage = @import("./usage.zig").usage;
 const list = @import("./list.zig");
 const install = @import("./install.zig");
 const versions = @import("./versions.zig");
+const current = @import("./current.zig");
 
 /// Execute the given command
 pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
@@ -30,8 +31,17 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
         .install => {
             try install.execute(allocator, args, paths);
         },
+        .latest => {
+            try install.latest(allocator, paths);
+        },
         .select => {
             try versions.execute(allocator, args, paths);
+        },
+        .current => {
+            try current.execute(allocator);
+        },
+        .delete => {
+            try versions.delete(allocator, args, paths);
         },
         else => {
             usage();

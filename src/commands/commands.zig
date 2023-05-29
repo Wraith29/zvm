@@ -5,17 +5,26 @@ pub const Commands = enum {
     install,
     usage,
     select,
+    current,
+    latest,
+    delete,
     unknown,
 
-    pub fn fromString(string: []const u8) Commands {
-        return if (std.mem.eql(u8, string, "install"))
+    pub fn fromString(command: []const u8) Commands {
+        return if (std.mem.eql(u8, command, "install"))
             .install
-        else if (std.mem.eql(u8, string, "list"))
+        else if (std.mem.eql(u8, command, "list"))
             .list
-        else if (std.mem.eql(u8, string, "usage"))
+        else if (std.mem.eql(u8, command, "usage"))
             .usage
-        else if (std.mem.eql(u8, string, "use") or std.mem.eql(u8, string, "select"))
+        else if (std.mem.eql(u8, command, "use") or std.mem.eql(u8, command, "select"))
             .select
+        else if (std.mem.eql(u8, command, "current"))
+            .current
+        else if (std.mem.eql(u8, command, "latest"))
+            .latest
+        else if (std.mem.eql(u8, command, "delete"))
+            .delete
         else
             .unknown;
     }

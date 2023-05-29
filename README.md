@@ -9,9 +9,14 @@ I am looking to improve this, but it will take a while.
   * lists installed versions of zig
 * install \<version>
   * attempt to install the specified version
+* latest
+  * install latest version
+* select \<version>
+  * select the specified version (if installed)
+* current
+  * outputs current version in use
 
 ## Requirements
 
 * `7z` executable on Path
 * `pwsh` executable on Path
-* `ZIG_PATH` Environment Variable, added to Path.

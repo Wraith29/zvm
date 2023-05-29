@@ -6,12 +6,12 @@
   * Stuff like:
   * [x] Exit early on trying to install existing version
   * [x] If Paths exist, don't error trying to create them
-* [ ] More Options
-  * [ ] Select -> Allow the user to select from installed versions
-  * [ ] Delete -> Allow the user to delete an installed version
-  * [ ] Latest -> Allow the user to install latest master build
+* [x] More Options
+  * [x] Select -> Allow the user to select from installed versions
+  * [x] Delete -> Allow the user to delete an installed version
+  * [x] Latest -> Allow the user to install latest master build
     * ^ Will require deleting current master before re-installing
-  * [ ] Current -> Write Current selected version to stdout
+  * [x] Current -> Write Current selected version to stdout
 * [ ] Remove `7z` dependency
   * Options:
   * [ ] Implement own zip decompressor

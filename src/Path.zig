@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 
 const Path = @This();
@@ -53,6 +54,30 @@ pub fn setup(self: *const Path) !void {
     var settings_path = try self.getFilePath("settings.json");
     if (!pathExists(settings_path)) (try std.fs.createFileAbsolute(settings_path, .{})).close();
     self.allocator.free(settings_path);
+
+    var sym_path = try self.getFilePath("zig");
+    defer self.allocator.free(sym_path);
+    if (!pathExists(sym_path)) try std.fs.makeDirAbsolute(sym_path);
+    if (builtin.os.tag == .windows) {
+        var command_string = std.ArrayList(u8).init(self.allocator);
+
+        try std.fmt.format(
+            command_string.writer(),
+            "{{[System.Environment]::SetEnvironmentVariable(\"ZIG_PATH\", \"{s}\", \"User\")}}",
+            .{sym_path},
+        );
+
+        var cmd = try command_string.toOwnedSlice();
+
+        var env_var_set_result = try std.ChildProcess.exec(.{
+            .allocator = self.allocator,
+            .argv = &[_][]const u8{ "pwsh", "-Command", cmd },
+        });
+
+        if (env_var_set_result.stderr.len != 0) {
+            std.log.err("Error Updating Env Var, {s}", .{env_var_set_result.stderr});
+        }
+    }
 }
 
 pub fn getFilePath(self: *const Path, file_name: []const u8) ![]const u8 {

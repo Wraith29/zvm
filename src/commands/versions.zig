@@ -22,17 +22,30 @@ pub fn isAlreadyInstalled(allocator: Allocator, paths: *const Path, version: []c
 }
 
 pub fn select(allocator: Allocator, paths: *const Path, version: []const u8) !void {
-    var new_path = try paths.getVersionPath(version);
-    defer allocator.free(new_path);
+    var target_path = try paths.getVersionPath(version);
+    defer allocator.free(target_path);
+    std.log.info("Obtained Version Path: {s}", .{target_path});
 
     var sym_path = try qol.concat(allocator, &[_][]const u8{ paths.base_path, std.fs.path.sep_str, "zig" });
     defer allocator.free(sym_path);
+    std.log.info("SymPath: {s}", .{sym_path});
 
     if (Path.pathExists(sym_path)) {
-        try std.fs.deleteTreeAbsolute(sym_path);
+        std.log.info("Deleting Existing Path", .{});
+        std.fs.deleteTreeAbsolute(sym_path) catch |err| {
+            std.log.err("Failed to delete {s}", .{sym_path});
+            return err;
+        };
     }
 
-    try std.fs.symLinkAbsolute(new_path, sym_path, .{ .is_directory = true });
+    std.debug.assert(!Path.pathExists(sym_path));
+
+    std.log.info("Creating SymLink", .{});
+
+    std.fs.symLinkAbsolute(target_path, sym_path, .{ .is_directory = true }) catch |err| {
+        std.log.err("Error Creating SymLink {!}", .{err});
+        return err;
+    };
 }
 
 pub fn getTargetVersion(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !ZigVersion {
@@ -58,6 +71,26 @@ pub fn getTargetVersion(allocator: Allocator, args: *ArgParser(Commands), paths:
     return version_to_install.?;
 }
 
+pub fn getVersionByName(allocator: Allocator, paths: *const Path, name: []const u8) !ZigVersion {
+    var all_versions = try Cache.getZigVersions(allocator, paths);
+
+    var version_to_install: ?ZigVersion = null;
+    for (all_versions) |version| {
+        if (qol.strEql(name, version.name)) {
+            version_to_install = version;
+            continue;
+        }
+        version.deinit(allocator);
+    }
+
+    if (version_to_install == null) {
+        std.log.err("Invalid Version: {s}", .{name});
+        return error.InvalidVersion;
+    }
+
+    return version_to_install.?;
+}
+
 pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
     var target_version = try getTargetVersion(allocator, args, paths);
     defer target_version.deinit(allocator);
@@ -69,4 +102,19 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
     }
 
     try select(allocator, paths, target_version.name);
+}
+
+pub fn delete(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
+    var target_version = try getTargetVersion(allocator, args, paths);
+    defer target_version.deinit(allocator);
+
+    if (!try isAlreadyInstalled(allocator, paths, target_version.name)) {
+        std.log.err("Failed to delete {s} as it is not installed.", .{target_version.name});
+        return;
+    }
+
+    var version_path = try paths.getVersionPath(target_version.name);
+    defer allocator.free(version_path);
+
+    try std.fs.deleteTreeAbsolute(version_path);
 }
