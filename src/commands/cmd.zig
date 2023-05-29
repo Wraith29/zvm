@@ -31,6 +31,9 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
         .install => {
             try install.execute(allocator, args, paths);
         },
+        .latest => {
+            try install.latest(allocator, paths);
+        },
         .select => {
             try versions.execute(allocator, args, paths);
         },

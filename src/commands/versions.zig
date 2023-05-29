@@ -71,6 +71,26 @@ pub fn getTargetVersion(allocator: Allocator, args: *ArgParser(Commands), paths:
     return version_to_install.?;
 }
 
+pub fn getVersionByName(allocator: Allocator, paths: *const Path, name: []const u8) !ZigVersion {
+    var all_versions = try Cache.getZigVersions(allocator, paths);
+
+    var version_to_install: ?ZigVersion = null;
+    for (all_versions) |version| {
+        if (qol.strEql(name, version.name)) {
+            version_to_install = version;
+            continue;
+        }
+        version.deinit(allocator);
+    }
+
+    if (version_to_install == null) {
+        std.log.err("Invalid Version: {s}", .{name});
+        return error.InvalidVersion;
+    }
+
+    return version_to_install.?;
+}
+
 pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const Path) !void {
     var target_version = try getTargetVersion(allocator, args, paths);
     defer target_version.deinit(allocator);

@@ -135,3 +135,14 @@ pub fn execute(allocator: Allocator, args: *ArgParser(Commands), paths: *const P
         return installVersion(allocator, paths, target_version);
     };
 }
+
+pub fn latest(allocator: Allocator, paths: *const Path) !void {
+    if (try versions.isAlreadyInstalled(allocator, paths, "master")) {
+        var master_path = try paths.getVersionPath("master");
+        try std.fs.deleteTreeAbsolute(master_path);
+    }
+
+    var target_version = try versions.getVersionByName(allocator, paths, "master");
+
+    return installVersion(allocator, paths, target_version);
+}

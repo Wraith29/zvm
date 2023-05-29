@@ -6,6 +6,7 @@ pub const Commands = enum {
     usage,
     select,
     current,
+    latest,
     unknown,
 
     pub fn fromString(command: []const u8) Commands {
@@ -19,6 +20,8 @@ pub const Commands = enum {
             .select
         else if (std.mem.eql(u8, command, "current"))
             .current
+        else if (std.mem.eql(u8, command, "latest"))
+            .latest
         else
             .unknown;
     }

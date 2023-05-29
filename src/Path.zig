@@ -61,7 +61,6 @@ pub fn setup(self: *const Path) !void {
     if (builtin.os.tag == .windows) {
         var command_string = std.ArrayList(u8).init(self.allocator);
 
-        std.log.info("Creating Env Var Command", .{});
         try std.fmt.format(
             command_string.writer(),
             "{{[System.Environment]::SetEnvironmentVariable(\"ZIG_PATH\", \"{s}\", \"User\")}}",
@@ -76,9 +75,6 @@ pub fn setup(self: *const Path) !void {
             .argv = &[_][]const u8{ "pwsh", "-Command", cmd },
         });
 
-        std.log.info("stdout: {s}", .{env_var_set_result.stdout});
-
-        std.log.info("{any}", .{env_var_set_result});
         if (env_var_set_result.stderr.len != 0) {
             std.log.err("Error Updating Env Var, {s}", .{env_var_set_result.stderr});
         }
