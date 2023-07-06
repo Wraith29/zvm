@@ -1,3 +1,6 @@
-zig-*/
+/zig-out
+/zig-cache
+/docs
+/old
 
 *.code-workspace
