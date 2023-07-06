@@ -138,7 +138,7 @@ pub fn ArgParser(comptime TCommand: type, comptime TFlag: type) type {
                 if (Flags.isFlag(arg)) {
                     flags.toggleFlag(arg);
                 } else {
-                    try args.append(arg);
+                    try arguments.append(arg);
                 }
             }
 
@@ -401,12 +401,14 @@ pub const FileSystem = struct {
 };
 
 /// Loads the contents of the given file path, caller owns returned memory
-/// Form the App Data Dir of the user, e.g.
 fn loadFileContents(allocator: Allocator, path: []const u8) ![]const u8 {
     var file_system = FileSystem.init(allocator);
     var root = try file_system.getAppDataDir();
     defer allocator.free(root);
+
     var file_path = try concat(allocator, &[_][]const u8{ root, "/", path });
+    defer allocator.free(file_path);
+
     var file = try fs.openFileAbsolute(file_path, .{});
     defer file.close();
 
@@ -418,8 +420,19 @@ pub const Config = struct {
 
     /// Setup will initialise the `config.json` file
     /// It will load the config file with the defaults for each setting
-    pub fn setup(_: Allocator) !void {
-        todo("Config.setup not implemented.", @src());
+    pub fn setup(allocator: Allocator) !void {
+        var file_system = FileSystem.init(allocator);
+        var config_contents = try loadFileContents(allocator, "config.json");
+        _ = config_contents;
+        var empty_config = Config{ .selected = "" };
+
+        var config_file_path = try file_system.getConfigPath();
+        defer allocator.free(config_file_path);
+
+        var config_file = try fs.openFileAbsolute(config_file_path, .{ .mode = .write_only });
+        defer config_file.close();
+
+        try json.stringify(empty_config, .{}, config_file.writer());
     }
 
     /// Loads the Config from users config directory /config.json
@@ -431,8 +444,19 @@ pub const Config = struct {
     /// var conf = config.value;  // Optional, can just do config.value everywhere
     /// ```
     pub fn loadFromFile(allocator: Allocator) !Parsed(Config) {
-        var config_contents = try loadFileContents(allocator, "config.json");
-        if (!(try json.validate(allocator, config_contents))) {}
+        var config_contents = blk: {
+            var contents = try loadFileContents(allocator, "config.json");
+            if (!(try json.validate(allocator, contents))) {
+                try Config.setup(allocator);
+                allocator.free(contents);
+                break :blk try loadFileContents(allocator, "config.json");
+            }
+            break :blk contents;
+        };
+
+        defer allocator.free(config_contents);
+
+        return try json.parseFromSlice(Config, allocator, config_contents, .{});
     }
 };
 
@@ -454,7 +478,7 @@ pub fn main() !void {
     try file_system.setup();
 
     var config = try Config.loadFromFile(allocator);
-    _ = config;
+    defer config.deinit();
     // defer config.deinit();
     // std.log.info("{any}", .{config.value});
 
