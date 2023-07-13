@@ -1,8 +1,12 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const http = std.http;
+const fmt = std.fmt;
 const fs = std.fs;
+const io = std.io;
 const json = std.json;
+const time = std.time;
+const os = std.os;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Client = std.http.Client;
@@ -10,11 +14,21 @@ const ComptimeStringMap = std.ComptimeStringMap;
 const Parsed = json.Parsed;
 const Scanner = json.Scanner;
 const SourceLocation = std.builtin.SourceLocation;
-const StringArrayList = std.ArrayList([]const u8);
+const StringArrayList = ArrayList([]const u8);
+const StringBuilder = ArrayList(u8);
 const StringHashMap = std.StringHashMap;
+const Uri = std.Uri;
 const assert = std.debug.assert;
 const stringToEnum = std.meta.stringToEnum;
 
+/// Utility function to emit a warning to the user that the reached code-block is not complete
+/// It will output a warning log, alongside the information of where the `todo` has occured
+/// ```zig
+/// todo("main isn't implemented", @src());
+/// ```
+/// ```sh
+/// warning: TODO my_file.zig:1:1 "`main` isn't implemented"
+/// ```
 fn todo(msg: []const u8, src: SourceLocation) void {
     std.log.warn("TODO {s}:{d}:{d} \"{s}\"", .{ src.file, src.line, src.column, msg });
 }
@@ -116,6 +130,7 @@ pub fn ArgParser(comptime TCommand: type, comptime TFlag: type) type {
     return struct {
         const Self = @This();
 
+        allocator: Allocator,
         selected: ?TCommand,
         flags: TFlag,
         args: [][]const u8,
@@ -143,26 +158,24 @@ pub fn ArgParser(comptime TCommand: type, comptime TFlag: type) type {
             }
 
             return Self{
+                .allocator = allocator,
                 .selected = selected,
                 .flags = flags,
                 .args = try arguments.toOwnedSlice(),
             };
         }
+
+        pub fn deinit(self: *const Self) void {
+            self.allocator.free(self.args);
+        }
     };
 }
 
-pub fn getComputerArchitecture() ![]const u8 {
-    const archictecture = switch (builtin.cpu.arch) {
-        .x86_64 => "x86_64",
-        else => return error.UnsupportedArchitecture,
-    };
+pub fn getComputerArchitecture() []const u8 {
+    const architecture = @tagName(builtin.cpu.arch);
+    const operating_system = @tagName(builtin.os.tag);
 
-    const os = switch (builtin.os.tag) {
-        .windows => "windows",
-        else => return error.UnsupportedOperatingSystem,
-    };
-
-    return archictecture ++ "-" ++ os;
+    return architecture ++ "-" ++ operating_system;
 }
 
 pub const Download = struct {
@@ -171,21 +184,29 @@ pub const Download = struct {
     size: ?[]const u8 = null,
 };
 
-pub const DownloadPair = struct { name: []const u8, download: Download };
+pub const DownloadPair = struct {
+    name: []const u8,
+    download: Download,
+};
+
 pub const DownloadPairList = ArrayList(DownloadPair);
 
 pub const Version = struct {
     version: ?[]const u8 = null,
     date: ?[]const u8 = null,
     docs: ?[]const u8 = null,
-    downloads: DownloadPairList,
+    downloads: []DownloadPair,
 
-    pub fn deinit(self: *Version) void {
-        self.downloads.deinit();
+    pub fn deinit(self: *Version, allocator: Allocator) void {
+        allocator.free(self.downloads);
     }
 };
 
-pub const VersionPair = struct { name: []const u8, version: Version };
+pub const VersionPair = struct {
+    name: []const u8,
+    version: Version,
+};
+
 pub const VersionPairList = ArrayList(VersionPair);
 
 pub const VersionParser = struct {
@@ -205,8 +226,9 @@ pub const VersionParser = struct {
         self.scanner.deinit();
     }
 
-    pub fn parse(self: *VersionParser) !VersionPairList {
+    pub fn parse(self: *VersionParser) ![]VersionPair {
         var result = VersionPairList.init(self.allocator);
+        errdefer result.deinit();
 
         var token = try self.scanner.next();
 
@@ -219,16 +241,28 @@ pub const VersionParser = struct {
                         continue;
                     }
                 },
-                else => todo("Unhandled Switch Cases", @src()),
+                else => |tkn| {
+                    var string = StringBuilder.init(self.allocator);
+                    errdefer string.deinit();
+
+                    try fmt.format(string.writer(), "Unhandled Switch Case: {s}", .{@tagName(tkn)});
+                    var msg = try string.toOwnedSlice();
+                    todo(msg, @src());
+
+                    self.allocator.free(msg);
+                },
             }
         }
 
-        return result;
+        return try result.toOwnedSlice();
     }
 
     pub fn parseVersion(self: *VersionParser, name: []const u8, parent_list: *VersionPairList) !void {
+        var downloads = DownloadPairList.init(self.allocator);
+        errdefer downloads.deinit();
+
         var version = Version{
-            .downloads = DownloadPairList.init(self.allocator),
+            .downloads = undefined,
         };
 
         var token = try self.scanner.next();
@@ -238,7 +272,7 @@ pub const VersionParser = struct {
                 .string => |str| {
                     if ((try self.scanner.peekNextTokenType()) == .object_begin) {
                         _ = try self.scanner.next(); // Skip the object opening
-                        try self.parseDownload(str, &version.downloads);
+                        try self.parseDownload(str, &downloads);
                         continue;
                     }
 
@@ -246,13 +280,23 @@ pub const VersionParser = struct {
                         if (field.type != ?[]const u8) continue;
                         if (strcmp(str, field.name)) {
                             @field(version, field.name) = (try self.scanner.next()).string; // This will fail if the value is not a string
-
                         }
                     }
                 },
-                else => todo("Unhandled Switch Cases", @src()),
+                else => |tkn| {
+                    var string = StringBuilder.init(self.allocator);
+                    errdefer string.deinit();
+
+                    try fmt.format(string.writer(), "Unhandled Switch Case: {s}", .{@tagName(tkn)});
+                    var msg = try string.toOwnedSlice();
+                    todo(msg, @src());
+
+                    self.allocator.free(msg);
+                },
             }
         }
+
+        version.downloads = try downloads.toOwnedSlice();
 
         try parent_list.append(VersionPair{ .name = name, .version = version });
     }
@@ -271,7 +315,16 @@ pub const VersionParser = struct {
                         }
                     }
                 },
-                else => todo("Unhandled Switch Cases", @src()),
+                else => |tkn| {
+                    var string = StringBuilder.init(self.allocator);
+                    errdefer string.deinit();
+
+                    try fmt.format(string.writer(), "Unhandled Switch Case: {s}", .{@tagName(tkn)});
+                    var msg = try string.toOwnedSlice();
+                    todo(msg, @src());
+
+                    self.allocator.free(msg);
+                },
             }
         }
 
@@ -298,7 +351,7 @@ pub const HttpClient = struct {
     }
 
     pub fn get(self: *HttpClient, url: []const u8) ![]const u8 {
-        var uri = try std.Uri.parse(url);
+        var uri = try Uri.parse(url);
 
         var current_retries: u8 = 0;
 
@@ -315,7 +368,7 @@ pub const HttpClient = struct {
 
         if (current_retries >= MAX_RETRIES) {
             std.log.err("Retry Attempt exceed Maximum Retries {}", .{MAX_RETRIES});
-            return error.DownloadError;
+            return error.RequestFailedError;
         }
 
         request.start() catch |err| {
@@ -353,8 +406,21 @@ pub const FileSystem = struct {
         return FileSystem{ .allocator = allocator };
     }
 
+    pub fn getFileContents(self: *const FileSystem, file_name: []const u8) ![]const u8 {
+        var root = try self.getAppDataDir();
+        defer self.allocator.free(root);
+
+        var file_path = try concat(self.allocator, &[_][]const u8{ root, "/", file_name });
+        defer self.allocator.free(file_path);
+
+        var file = try fs.openFileAbsolute(file_path, .{});
+        defer file.close();
+
+        return try file.reader().readAllAlloc(self.allocator, (try file.stat()).size);
+    }
+
     /// Sets up the file system to house the Zig Versions
-    pub fn setup(self: *FileSystem) !void {
+    pub fn setup(self: *const FileSystem) !void {
         var root = try self.getAppDataDir();
         defer self.allocator.free(root);
         try createDirectoryIfNotExists(root);
@@ -386,11 +452,11 @@ pub const FileSystem = struct {
         try createFileIfNotExists(cache_path);
     }
 
-    pub fn getAppDataDir(self: *FileSystem) ![]const u8 {
+    pub fn getAppDataDir(self: *const FileSystem) ![]const u8 {
         return try std.fs.getAppDataDir(self.allocator, "zvm");
     }
 
-    pub fn getConfigPath(self: *FileSystem) ![]const u8 {
+    pub fn getConfigPath(self: *const FileSystem) ![]const u8 {
         var root = try self.getAppDataDir();
         defer self.allocator.free(root);
         return try concat(
@@ -398,22 +464,32 @@ pub const FileSystem = struct {
             &[_][]const u8{ root, "/config.json" },
         );
     }
+
+    pub fn getCachePath(self: *const FileSystem) ![]const u8 {
+        var root = try self.getAppDataDir();
+        defer self.allocator.free(root);
+
+        return try concat(
+            self.allocator,
+            &[_][]const u8{ root, "/cache.json" },
+        );
+    }
 };
 
-/// Loads the contents of the given file path, caller owns returned memory
-fn loadFileContents(allocator: Allocator, path: []const u8) ![]const u8 {
-    var file_system = FileSystem.init(allocator);
-    var root = try file_system.getAppDataDir();
-    defer allocator.free(root);
+// /// Loads the contents of the given file path, caller owns returned memory
+// fn loadFileContents(allocator: Allocator, path: []const u8) ![]const u8 {
+//     var file_system = FileSystem.init(allocator);
+//     var root = try file_system.getAppDataDir();
+//     defer allocator.free(root);
 
-    var file_path = try concat(allocator, &[_][]const u8{ root, "/", path });
-    defer allocator.free(file_path);
+//     var file_path = try concat(allocator, &[_][]const u8{ root, "/", path });
+//     defer allocator.free(file_path);
 
-    var file = try fs.openFileAbsolute(file_path, .{});
-    defer file.close();
+//     var file = try fs.openFileAbsolute(file_path, .{});
+//     defer file.close();
 
-    return try file.reader().readAllAlloc(allocator, 1028);
-}
+//     return try file.reader().readAllAlloc(allocator, (try file.stat()).size);
+// }
 
 pub const Config = struct {
     selected: []const u8,
@@ -422,8 +498,6 @@ pub const Config = struct {
     /// It will load the config file with the defaults for each setting
     pub fn setup(allocator: Allocator) !void {
         var file_system = FileSystem.init(allocator);
-        var config_contents = try loadFileContents(allocator, "config.json");
-        _ = config_contents;
         var empty_config = Config{ .selected = "" };
 
         var config_file_path = try file_system.getConfigPath();
@@ -444,12 +518,14 @@ pub const Config = struct {
     /// var conf = config.value;  // Optional, can just do config.value everywhere
     /// ```
     pub fn loadFromFile(allocator: Allocator) !Parsed(Config) {
+        var file_system = FileSystem.init(allocator);
+
         var config_contents = blk: {
-            var contents = try loadFileContents(allocator, "config.json");
+            var contents = try file_system.getFileContents("config.json");
             if (!(try json.validate(allocator, contents))) {
                 try Config.setup(allocator);
                 allocator.free(contents);
-                break :blk try loadFileContents(allocator, "config.json");
+                break :blk try file_system.getFileContents("config.json");
             }
             break :blk contents;
         };
@@ -460,50 +536,182 @@ pub const Config = struct {
     }
 };
 
+pub const Cache = struct {
+    const InnerCache = union(enum) {
+        parsed: Parsed(Cache),
+        cache: Cache,
+
+        pub fn deinit(self: *const InnerCache, allocator: Allocator) void {
+            switch (self.*) {
+                .parsed => |parsed| {
+                    parsed.deinit();
+                },
+                .cache => |cache| {
+                    for (cache.versions) |name_version_pair| {
+                        var version = name_version_pair.version;
+                        version.deinit(allocator);
+                    }
+                    allocator.free(cache);
+                },
+            }
+        }
+
+        pub fn value(self: *const InnerCache) Cache {
+            return switch (self.*) {
+                .parsed => |parsed| parsed.value,
+                .cache => |cache| cache,
+            };
+        }
+    };
+
+    timestamp: i64,
+    versions: []VersionPair,
+
+    fn getCacheData(allocator: Allocator) ![]const u8 {
+        const file_system = FileSystem.init(allocator);
+
+        const cache_path = try file_system.getCachePath();
+        defer allocator.free(cache_path);
+
+        var cache_file = try fs.openFileAbsolute(cache_path, .{ .mode = .read_only });
+        defer cache_file.close();
+
+        const cache_stat = try cache_file.stat();
+
+        return try cache_file.reader().readAllAlloc(allocator, cache_stat.size);
+    }
+
+    fn clear(allocator: Allocator) !void {
+        const file_system = FileSystem.init(allocator);
+
+        const cache_path = try file_system.getCachePath();
+        defer allocator.free(cache_path);
+
+        var cache_file = try fs.openFileAbsolute(cache_path, .{ .mode = .write_only });
+        defer cache_file.close();
+
+        try cache_file.writer().writeAll("");
+    }
+
+    fn loadFromWeb(_: Allocator) !InnerCache {
+        return .{ .cache = Cache{ .timestamp = 1, .versions = &[_]VersionPair{} } };
+    }
+
+    fn isOutdated(self: *const Cache) bool {
+        return self.timestamp + time.ns_per_day < time.milliTimestamp();
+    }
+
+    pub fn get(allocator: Allocator) !InnerCache {
+        const cache_data = blk: {
+            const cache_str = try Cache.getCacheData(allocator);
+
+            // if it is not valid json (i.e. empty)
+            if (!(try json.validate(allocator, cache_str))) {
+                try Cache.clear(allocator);
+
+                return try Cache.loadFromWeb(allocator);
+            }
+
+            break :blk cache_str;
+        };
+
+        const cache = try json.parseFromSlice(Cache, allocator, cache_data, .{});
+
+        if (cache.value.isOutdated()) {
+            return try Cache.loadFromWeb(allocator);
+        }
+
+        return .{ .parsed = cache };
+    }
+};
+
+const InstallError = error{ MissingVersionArgumentError, InvalidVersionError } || Allocator.Error;
+
+fn install(allocator: Allocator, arg_parser: *const ArgParser(Command, Flags), config: *const Config, cache: *const Cache) InstallError!void {
+    _ = cache;
+    _ = config;
+    if (arg_parser.args.len < 1) {
+        return InstallError.MissingVersionArgumentError;
+    }
+
+    const version_name = arg_parser.args[0];
+
+    // if (!cache.contains(version_name)) {
+    // return InstallError.InvalidVersionError;
+    // }
+
+    std.log.info("{s}", .{version_name});
+
+    allocator.free(try allocator.alloc(u8, 1));
+}
+
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    var gpa = std.heap.GeneralPurposeAllocator(.{
+        // .stack_trace_frames = 32,
+    }){};
+    defer {
+        if (gpa.deinit() != .ok) {
+            std.log.warn("Memory Leaks Found", .{});
+        }
+    }
+    var allocator = gpa.allocator();
     // var arena = std.heap.ArenaAllocator.init(gpa.allocator());
     // defer arena.deinit();
     // var allocator = arena.allocator();
-    var allocator = gpa.allocator();
 
-    var args = try std.process.argsAlloc(allocator);
+    const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    var arg_parser = try ArgParser(Command, Flags).init(allocator, args[1..]);
-    std.log.info("{any}", .{arg_parser});
+    const arg_parser = try ArgParser(Command, Flags).init(allocator, args[1..]);
+    defer arg_parser.deinit();
 
-    var file_system = FileSystem.init(allocator);
+    const file_system = FileSystem.init(allocator);
     try file_system.setup();
 
     var config = try Config.loadFromFile(allocator);
     defer config.deinit();
-    // defer config.deinit();
-    // std.log.info("{any}", .{config.value});
 
-    // var http_client = HttpClient.init(allocator);
-    // defer http_client.deinit();
+    const cache = try Cache.get(allocator);
 
-    // var zig_index = try http_client.get(HttpClient.INDEX_URL);
-    // defer allocator.free(zig_index);
+    // var loaded_cache = if (arg_parser.flags.reload_cache)
+    //     try Cache.download(allocator)
+    // else
+    //     try Cache.load(allocator);
 
-    // var index = try std.fs.cwd().openFile("./index.json", .{ .mode = .read_only });
-    // defer index.close();
-    // var zig_index = try index.reader().readAllAlloc(allocator, 100_000);
-    // defer allocator.free(zig_index);
+    // defer loaded_cache.deinit(allocator);
 
-    // var parser = VersionParser.init(allocator, zig_index);
-    // defer parser.deinit();
+    // var cache = loaded_cache.value();
+    // std.log.info("{any}", .{cache});
 
-    // var version_list = try parser.parse();
-    // defer {
-    //     for (version_list.items) |item| {
-    //         var version = item.version;
-    //         version.deinit();
-    //     }
+    switch (arg_parser.selected.?) {
+        .install => {
+            install(allocator, &arg_parser, &config.value, &cache.value()) catch |err| switch (err) {
+                InstallError.MissingVersionArgumentError => {
+                    std.log.err("Missing Required Argument \"version\"", .{});
+                },
+                InstallError.InvalidVersionError => {
+                    const version = arg_parser.args[0];
+                    std.log.err("Invalid Version: \"{s}\"", .{version});
+                },
+                else => |tag| {
+                    var string = StringBuilder.init(allocator);
+                    errdefer string.deinit();
 
-    //     version_list.deinit();
-    // }
+                    try fmt.format(string.writer(), "Unhandled Error: {s}", .{@errorName(tag)});
+                    var msg = try string.toOwnedSlice();
+                    defer allocator.free(msg);
+                    todo(msg, @src());
+                },
+            };
+        },
+        else => |tag| {
+            var string = StringBuilder.init(allocator);
+            errdefer string.deinit();
 
+            try fmt.format(string.writer(), "Unhandled Switch Case: {s}", .{@tagName(tag)});
+            var msg = try string.toOwnedSlice();
+            defer allocator.free(msg);
+            todo(msg, @src());
+        },
+    }
 }
